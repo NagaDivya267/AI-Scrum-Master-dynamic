@@ -209,8 +209,8 @@ def get_api_key():
     
     return os.getenv("GROQ_API_KEY", "")
 
-def generate_ai_insights(df):
-    """Generate AI-powered insights using Groq"""
+def generate_ai_insights(df, project_context="agile software delivery"):
+    """Generate AI-powered insights using Groq with structured metrics"""
     api_key = get_api_key()
     
     if not api_key:
@@ -220,20 +220,48 @@ def generate_ai_insights(df):
     try:
         client = Groq(api_key=api_key)
         
-        summary = prepare_llm_summary(df)
+        # Calculate metrics for the prompt
+        metrics = calculate_metrics(df)
         
-        prompt = f"""You are an expert Scrum Master and agile coach with 10+ years of experience.
+        # Calculate percentages
+        total_sp = metrics['total_sp']
+        remaining_pct = (metrics['remaining_sp'] / total_sp * 100) if total_sp > 0 else 0
+        not_started_pct = (metrics['todo_sp'] / total_sp * 100) if total_sp > 0 else 0
+        blocker_pct = (metrics['blocked_count'] / len(df) * 100) if len(df) > 0 else 0
+        risk_pct = metrics['risk_percentage']
+        
+        # Calculate velocity gap (difference between expected and actual)
+        velocity_metrics = get_velocity_metrics(df)
+        avg_velocity = velocity_metrics['avg_velocity']
+        velocity_gap_pct = ((total_sp - metrics['completed_sp']) - avg_velocity) / total_sp * 100 if total_sp > 0 else 0
+        
+        prompt = f"""You are an experienced Scrum Master coach working in {project_context} projects.
 
-Analyze the following sprint data and provide:
-1. **Sprint Health Assessment** - Overall status and trajectory
-2. **Key Risks** - Top 3 risks that could impact delivery
-3. **Root Cause Analysis** - Why are these risks occurring?
-4. **Predictive Insights** - What's likely to happen if current trends continue?
-5. **Actionable Recommendations** - 3-5 specific actions to improve sprint health
+Analyze the sprint health based on:
 
-Be concise, data-driven, and focus on what matters most.
+- Remaining Work: {remaining_pct:.1f}%
+- Blockers: {blocker_pct:.1f}%
+- Not Started Work: {not_started_pct:.1f}%
+- Velocity Gap: {velocity_gap_pct:.1f}%
+- Overall Risk: {risk_pct:.1f}%
+- Blocked Items: {metrics['blocked_count']}
+- In Progress: {metrics['in_progress_sp']} pts
+- Current Completion: {metrics['completion_rate']:.1f}%
 
-{summary}"""
+Provide response in this format:
+
+1. Sprint Health Summary (1-2 lines)
+
+2. Key Risks (bullet points)
+   - Be specific (e.g., too many stories not started, high blocker rate)
+
+3. Root Cause Analysis
+   - Why this is happening
+
+4. Recommended Actions (very practical)
+   - What Scrum Master should do tomorrow
+
+Keep it concise and actionable."""
         
         with st.spinner("🧠 AI is analyzing your sprint data..."):
             try:
@@ -241,7 +269,7 @@ Be concise, data-driven, and focus on what matters most.
                     model="llama-3.1-70b-versatile",  # Fast, stable, and supported
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.7,
-                    max_tokens=1500
+                    max_tokens=1200
                 )
             except Exception as e:
                 # Fallback to another model if primary fails
@@ -250,7 +278,7 @@ Be concise, data-driven, and focus on what matters most.
                     model="llama-3.1-8b-instant",
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.7,
-                    max_tokens=1500
+                    max_tokens=1200
                 )
         
         return response.choices[0].message.content
