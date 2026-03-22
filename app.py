@@ -13,33 +13,46 @@ csv_file = "sprint_data.csv"
 # Sidebar - API Key Setup
 st.sidebar.markdown("### ⚙️ Configuration")
 
-# Try to get API key from Streamlit secrets (for production), then from env vars, then ask user
+# Try to get API key from Streamlit secrets (for production), then from env vars
 api_key = None
+
+# First, try Streamlit secrets (production on Streamlit Cloud)
 try:
-    # For Streamlit Cloud deployment
-    api_key = st.secrets.get("GROQ_API_KEY", "")
-except:
-    # For local development
+    if hasattr(st, 'secrets') and 'GROQ_API_KEY' in st.secrets:
+        api_key = st.secrets['GROQ_API_KEY']
+except Exception:
+    pass
+
+# If not found in secrets, try environment variable
+if not api_key:
     api_key = os.getenv("GROQ_API_KEY", "")
 
 # Allow user to override with sidebar input
 sidebar_input = st.sidebar.text_input(
-    "Groq API Key (optional override)", 
-    value="",
+    "Groq API Key", 
+    value=api_key if api_key else "",
     type="password",
     help="Get your FREE API key from https://console.groq.com/keys"
 )
 
 if sidebar_input:
     api_key = sidebar_input
-    os.environ["GROQ_API_KEY"] = api_key
 
-# Store API key in session
+# Set environment variable for API calls
 if api_key:
     os.environ["GROQ_API_KEY"] = api_key
     st.sidebar.success("✅ Groq API Key loaded")
 else:
-    st.sidebar.warning("⚠️ Enter Groq API Key for AI insights (FREE at https://console.groq.com)")
+    st.sidebar.error("❌ No Groq API Key found")
+    st.sidebar.info("""
+    **To use this app, you need a FREE Groq API key:**
+    
+    1. Go to https://console.groq.com/keys
+    2. Sign up (takes 1 minute)
+    3. Create an API key
+    4. In Streamlit Cloud: Settings > Secrets > Add `GROQ_API_KEY = "your_key"`
+    5. Or paste it above in the Configuration box
+    """)
 
 # Title and header
 st.markdown("# 🚀 AI SCRUM ASSISTANT - with Predictive Analytics")
