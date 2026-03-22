@@ -169,26 +169,34 @@ def chat_with_ai(df, user_question):
         
         summary = prepare_llm_summary(df)
         
-        prompt = f"""You are an expert Scrum Master helping teams solve problems and improve their sprints.
+        prompt = f"""You are an expert Scrum Master with 10+ years of experience helping agile teams deliver successfully.
 
 SPRINT DATA CONTEXT:
 {summary}
 
 USER QUESTION: {user_question}
 
-Provide:
-1. **Direct Answer** - Address their question specifically
-2. **Problem Analysis** - What might be causing this issue
-3. **Team Suggestions** - 2-3 concrete actions the team can take now
-4. **Prevention Tips** - How to avoid this problem in future sprints
+Based on the sprint data, answer the user's question comprehensively.
 
-Be concise, practical, and actionable. Focus on what helps the team most."""
+If they ask about:
+- **Sprint Goal Achievement**: Analyze completion rate, velocity, and blockers to predict if they'll meet the goal
+- **Key Risks**: Identify top 3-5 risks based on blocked items, incomplete work, and velocity trends
+- **Scrum Master Actions**: Provide specific, actionable steps they can take immediately
+- **Problem Solving**: Suggest root causes and solutions based on the data
+
+Always include:
+1. **Direct Answer** - Clear, data-backed response
+2. **Supporting Data** - Use specific numbers from their sprint
+3. **Action Items** - 2-3 concrete steps to take
+4. **Success Metrics** - How to measure if actions worked
+
+Be concise, practical, and focused on what matters most for sprint success."""
         
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",  # Fast, stable, and actively supported
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
-            max_tokens=1000
+            max_tokens=1200
         )
         
         return response.choices[0].message.content
@@ -328,6 +336,16 @@ if df is not None:
             - "What should we do about the blocked items?"
             - "Which sprint is at risk?"
             """)
+            
+            # Example questions for Scrum Masters
+            st.markdown("**💡 Try asking:**")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.write("- Will we meet sprint goal?")
+            with col2:
+                st.write("- What are the key risks?")
+            with col3:
+                st.write("- What should I do as Scrum Master?")
             
             # Initialize chat history in session state
             if "chat_history" not in st.session_state:
