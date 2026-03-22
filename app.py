@@ -199,13 +199,26 @@ def prepare_llm_summary(df):
     
     return summary
 
+def get_api_key():
+    """Get Groq API key from Streamlit secrets or environment"""
+    try:
+        if hasattr(st, 'secrets') and 'GROQ_API_KEY' in st.secrets:
+            return st.secrets['GROQ_API_KEY']
+    except:
+        pass
+    
+    return os.getenv("GROQ_API_KEY", "")
+
 def generate_ai_insights(df):
     """Generate AI-powered insights using Groq"""
-    if not os.getenv("GROQ_API_KEY"):
+    api_key = get_api_key()
+    
+    if not api_key:
+        st.error("❌ Groq API Key not configured. Please add it to Streamlit Cloud Secrets.")
         return None
     
     try:
-        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        client = Groq(api_key=api_key)
         
         summary = prepare_llm_summary(df)
         
@@ -248,11 +261,13 @@ Be concise, data-driven, and focus on what matters most.
 
 def chat_with_ai(df, user_question):
     """Chat with AI about sprint data and provide suggestions"""
-    if not os.getenv("GROQ_API_KEY"):
-        return None
+    api_key = get_api_key()
+    
+    if not api_key:
+        return "❌ Error: Groq API Key not configured. Please contact admin to add it to Streamlit Cloud Secrets."
     
     try:
-        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        client = Groq(api_key=api_key)
         
         summary = prepare_llm_summary(df)
         
