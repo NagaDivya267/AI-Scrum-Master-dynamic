@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import csv
+import os
+from openai import OpenAI
 
 # Page config
 st.set_page_config(page_title="AI Scrum Assistant", layout="wide", initial_sidebar_state="expanded")
@@ -8,8 +10,24 @@ st.set_page_config(page_title="AI Scrum Assistant", layout="wide", initial_sideb
 # Define the CSV file path
 csv_file = "sprint_data.csv"
 
+# Sidebar - API Key Setup
+st.sidebar.markdown("### ⚙️ Configuration")
+api_key = st.sidebar.text_input(
+    "OpenAI API Key", 
+    value=os.getenv("OPENAI_API_KEY", ""),
+    type="password",
+    help="Get your API key from https://platform.openai.com/api-keys"
+)
+
+# Store API key in session
+if api_key:
+    os.environ["OPENAI_API_KEY"] = api_key
+    st.sidebar.success("✅ API Key loaded")
+else:
+    st.sidebar.warning("⚠️ Enter OpenAI API Key for AI insights")
+
 # Title and header
-st.markdown("# 🚀 AI SCRUM ASSISTANT - SPRINT DATA VIEWER")
+st.markdown("# 🚀 AI SCRUM ASSISTANT - with Predictive Analytics")
 st.markdown("---")
 
 def read_from_csv():
@@ -37,12 +55,106 @@ def get_sprint_summary(df):
     
     return sprints
 
+def calculate_metrics(df):
+    """Calculate key metrics for the sprint"""
+    sprints_summary = get_sprint_summary(df)
+    
+    total_story_points = sum(s["Total"] for s in sprints_summary.values())
+    total_completed = sum(s["Done"] for s in sprints_summary.values())
+    total_in_progress = sum(s["In Progress"] for s in sprints_summary.values())
+    total_todo = sum(s["To Do"] for s in sprints_summary.values())
+    blocked_count = len(df[df['Blocked'] == 'Yes'])
+    
+    completion_rate = (total_completed / total_story_points * 100) if total_story_points > 0 else 0
+    risk_percentage = ((total_in_progress + total_todo) / total_story_points * 100) if total_story_points > 0 else 0
+    
+    return {
+        "total_sp": total_story_points,
+        "completed_sp": total_completed,
+        "remaining_sp": total_todo + total_in_progress,
+        "in_progress_sp": total_in_progress,
+        "todo_sp": total_todo,
+        "blocked_count": blocked_count,
+        "completion_rate": completion_rate,
+        "risk_percentage": risk_percentage
+    }
+
+def prepare_llm_summary(df):
+    """Prepare sprint data summary for LLM analysis"""
+    metrics = calculate_metrics(df)
+    sprints_summary = get_sprint_summary(df)
+    blocked_items = df[df['Blocked'] == 'Yes']
+    
+    summary = f"""
+    SPRINT DATA ANALYSIS REQUEST
+    
+    OVERALL METRICS:
+    - Total Story Points: {metrics['total_sp']}
+    - Completed Story Points: {metrics['completed_sp']}
+    - In Progress Story Points: {metrics['in_progress_sp']}
+    - To Do Story Points: {metrics['todo_sp']}
+    - Completion Rate: {metrics['completion_rate']:.1f}%
+    - Risk Percentage: {metrics['risk_percentage']:.1f}%
+    - Blocked Items: {metrics['blocked_count']}
+    
+    SPRINT-WISE DATA:
+    """
+    
+    for sprint_name, stats in sorted(sprints_summary.items()):
+        sprint_completion = (stats['Done'] / stats['Total'] * 100) if stats['Total'] > 0 else 0
+        summary += f"\n    {sprint_name}: {stats['Done']}/{stats['Total']} points completed ({sprint_completion:.0f}%)"
+        summary += f"\n      - Done: {stats['Done']}, In Progress: {stats['In Progress']}, To Do: {stats['To Do']}"
+    
+    if len(blocked_items) > 0:
+        summary += "\n\n    BLOCKED ITEMS:\n"
+        for _, item in blocked_items.iterrows():
+            summary += f"    - {item['Story']} ({item['Sprint']}): {item['Status']}\n"
+    
+    return summary
+
+def generate_ai_insights(df):
+    """Generate AI-powered insights using OpenAI"""
+    if not os.getenv("OPENAI_API_KEY"):
+        return None
+    
+    try:
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        
+        summary = prepare_llm_summary(df)
+        
+        prompt = f"""You are an expert Scrum Master and agile coach with 10+ years of experience.
+
+Analyze the following sprint data and provide:
+1. **Sprint Health Assessment** - Overall status and trajectory
+2. **Key Risks** - Top 3 risks that could impact delivery
+3. **Root Cause Analysis** - Why are these risks occurring?
+4. **Predictive Insights** - What's likely to happen if current trends continue?
+5. **Actionable Recommendations** - 3-5 specific actions to improve sprint health
+
+Be concise, data-driven, and focus on what matters most.
+
+{summary}"""
+        
+        with st.spinner("🧠 AI is analyzing your sprint data..."):
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=1500
+            )
+        
+        return response.choices[0].message.content
+    
+    except Exception as e:
+        st.error(f"❌ Error calling OpenAI API: {str(e)}")
+        return None
+
 # Read data
 df = read_from_csv()
 
 if df is not None:
-    # Create tabs
-    tab1, tab2, tab3 = st.tabs(["📊 All Data", "📈 Sprint Summary", "🎯 Metrics"])
+    # Create tabs with new AI Insights tab
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 All Data", "📈 Sprint Summary", "🎯 Metrics", "🧠 AI Insights"])
     
     # Tab 1: All Data
     with tab1:
@@ -117,6 +229,36 @@ if df is not None:
             st.dataframe(blocked_df[['Sprint', 'Story', 'Status', 'StoryPoints']], width='stretch')
         else:
             st.success("✅ No blocked items")
+    
+    # Tab 4: AI Insights
+    with tab4:
+        st.subheader("🧠 AI-Powered Sprint Analysis")
+        
+        # Check if API key is configured
+        if not os.getenv("OPENAI_API_KEY"):
+            st.info("📝 Please enter your OpenAI API key in the sidebar (⚙️ Configuration) to enable AI insights.")
+            st.markdown("""
+            **Don't have an API key?**
+            1. Go to [OpenAI Platform](https://platform.openai.com/account/api-keys)
+            2. Sign up or log in
+            3. Create a new API key
+            4. Paste it in the Configuration panel on the left
+            """)
+        else:
+            col1, col2 = st.columns([3, 1])
+            
+            with col2:
+                if st.button("🚀 Generate AI Insights", use_container_width=True):
+                    insights = generate_ai_insights(df)
+                    
+                    if insights:
+                        st.session_state.ai_insights = insights
+            
+            # Display cached insights
+            if "ai_insights" in st.session_state and st.session_state.ai_insights:
+                st.markdown(st.session_state.ai_insights)
+            else:
+                st.info("💡 Click 'Generate AI Insights' to get AI-powered analysis of your sprint health, risks, and recommendations.")
     
     st.markdown("---")
     st.markdown("*Last updated: Real-time from sprint_data.csv*")
