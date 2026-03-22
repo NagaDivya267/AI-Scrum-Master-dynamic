@@ -461,22 +461,6 @@ if df is not None:
             # Display traffic light status prominently
             st.info(f"### {icon} {status_text} - {round(confidence_val, 2)}% Confidence")
             
-            # Confidence threshold visualization
-            confidence_col1, confidence_col2 = st.columns([2, 1])
-            
-            with confidence_col1:
-                # Progress bar for confidence
-                st.write("**Confidence Level Breakdown:**")
-                if confidence_val >= 85:
-                    st.success(f"🟢 HIGH CONFIDENCE ({round(confidence_val, 2)}%) - Team is on track to meet sprint goals")
-                elif confidence_val >= 60:
-                    st.warning(f"🟡 MEDIUM CONFIDENCE ({round(confidence_val, 2)}%) - Some risks identified, attention needed")
-                else:
-                    st.error(f"🔴 LOW CONFIDENCE ({round(confidence_val, 2)}%) - High risk of missing sprint goals")
-            
-            with confidence_col2:
-                st.metric("Risk Level", "HIGH" if confidence_val < 60 else "MEDIUM" if confidence_val < 85 else "LOW")
-            
             # Key metrics affecting confidence
             st.markdown("---")
             st.subheader("📊 Key Factors Affecting Delivery")
