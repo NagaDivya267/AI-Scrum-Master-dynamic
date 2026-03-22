@@ -148,6 +148,91 @@ def get_risk_status(risk_percentage):
         return f"🟡 Medium Risk ({risk_percentage:.1f}%) - Sprint needs close monitoring"
     return f"🟢 Low Risk ({risk_percentage:.1f}%) - Sprint is in a healthy range"
 
+def calculate_sprint_health(committed_sp, completed_sp, added_sp, prod_defects, total_defects):
+    """Calculate sprint health score for a completed sprint."""
+    if committed_sp <= 0:
+        predictability = 0
+        spillover = 0
+        scope_change = 0
+    else:
+        predictability = (completed_sp / committed_sp) * 100
+        spillover = ((committed_sp - completed_sp) / committed_sp) * 100
+        scope_change = (added_sp / committed_sp) * 100
+
+    defect_leakage = (prod_defects / total_defects) * 100 if total_defects > 0 else 0
+
+    sprint_health = (
+        0.4 * predictability
+        - 0.2 * spillover
+        - 0.2 * scope_change
+        - 0.2 * defect_leakage
+    )
+
+    return {
+        "predictability": round(predictability, 2),
+        "spillover": round(spillover, 2),
+        "scope_change": round(scope_change, 2),
+        "defect_leakage": round(defect_leakage, 2),
+        "sprint_health": round(sprint_health, 2)
+    }
+
+def get_health_status(score):
+    """Return traffic-light sprint health label."""
+    if score >= 80:
+        return "🟢 Healthy Sprint"
+    if score >= 60:
+        return "🟡 Moderate"
+    return "🔴 Poor Sprint"
+
+def sum_optional_numeric(sprint_df, column_candidates):
+    """Return sum of first matching numeric column, else 0."""
+    for column_name in column_candidates:
+        if column_name in sprint_df.columns:
+            return pd.to_numeric(sprint_df[column_name], errors='coerce').fillna(0).sum()
+    return 0
+
+def get_completed_sprint_health(df):
+    """Build sprint health metrics for completed sprints only."""
+    sprints_summary = get_sprint_summary(df)
+    health_rows = []
+
+    for sprint_name, stats in sorted(sprints_summary.items()):
+        committed_sp = stats.get("Total", 0)
+        completed_sp = stats.get("Done", 0)
+        in_progress_sp = stats.get("In Progress", 0)
+        todo_sp = stats.get("To Do", 0)
+
+        is_completed_sprint = committed_sp > 0 and in_progress_sp == 0 and todo_sp == 0
+        if not is_completed_sprint:
+            continue
+
+        sprint_df = df[df['Sprint'] == sprint_name]
+        added_sp = sum_optional_numeric(sprint_df, ["AddedSP", "Added_SP", "ScopeAddedSP"])
+        prod_defects = sum_optional_numeric(sprint_df, ["ProdDefects", "ProductionDefects", "Prod_Defects"])
+        total_defects = sum_optional_numeric(sprint_df, ["TotalDefects", "Defects", "Total_Defects"])
+
+        health = calculate_sprint_health(
+            committed_sp=committed_sp,
+            completed_sp=completed_sp,
+            added_sp=added_sp,
+            prod_defects=prod_defects,
+            total_defects=total_defects
+        )
+
+        health_rows.append({
+            "Sprint": sprint_name,
+            "Committed SP": committed_sp,
+            "Completed SP": completed_sp,
+            "Predictability %": health["predictability"],
+            "Spillover %": health["spillover"],
+            "Scope Change %": health["scope_change"],
+            "Defect Leakage %": health["defect_leakage"],
+            "Sprint Health %": health["sprint_health"],
+            "Status": get_health_status(health["sprint_health"])
+        })
+
+    return pd.DataFrame(health_rows)
+
 def get_velocity_metrics(df):
     """Calculate velocity-based metrics across sprints"""
     sprints_summary = get_sprint_summary(df)
@@ -427,14 +512,28 @@ if df is not None:
     with tab3:
         st.subheader("🤖 AI Sprint Health Advisor")
 
-        # --- OVERVIEW ---
-        st.subheader("📊 Sprint Overview")
-        preview_cols = ["Sprint", "Story", "Status", "StoryPoints", "Blocked"]
-        available_cols = [col for col in preview_cols if col in df.columns]
-        if available_cols:
-            st.dataframe(df[available_cols], width='stretch', height=280)
+        # --- COMPLETED SPRINT HEALTH ---
+        st.subheader("🏁 Sprint Health Status (Completed Sprints)")
+        completed_health_df = get_completed_sprint_health(df)
+
+        if not completed_health_df.empty:
+            for i in range(0, len(completed_health_df), 3):
+                card_cols = st.columns(3)
+                for j in range(3):
+                    row_idx = i + j
+                    if row_idx < len(completed_health_df):
+                        row = completed_health_df.iloc[row_idx]
+                        with card_cols[j]:
+                            st.metric(
+                                label=row["Sprint"],
+                                value=f"{row['Sprint Health %']}%",
+                                delta=row["Status"]
+                            )
+
+            with st.expander("View Completed Sprint Health Details"):
+                st.dataframe(completed_health_df, width='stretch')
         else:
-            st.dataframe(df, width='stretch', height=280)
+            st.info("No completed sprints found yet. Sprint health status will appear once a sprint reaches 100% completion.")
 
         # --- METRICS ---
         metrics = calculate_advanced_metrics(df)
