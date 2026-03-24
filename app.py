@@ -427,7 +427,7 @@ Keep it concise and actionable."""
         with st.spinner("🧠 AI is analyzing your sprint data..."):
             try:
                 response = client.chat.completions.create(
-                    model="llama-3.1-70b-versatile",  # Fast, stable, and supported
+                    model="llama-3.3-70b-versatile",  # Fast, stable, and supported
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.7,
                     max_tokens=1200
@@ -767,7 +767,7 @@ if df is not None:
             ✅ No Cost Limits - Generate unlimited insights
             """)
         else:
-            col1, col2 = st.columns([3, 1])
+            col1, col2, col3 = st.columns([3, 1, 1])
             
             with col2:
                 if st.button("🚀 Generate AI Insights", use_container_width=True):
@@ -775,6 +775,16 @@ if df is not None:
                     
                     if insights:
                         st.session_state.ai_insights = insights
+
+            with col3:
+                if "ai_insights" in st.session_state and st.session_state.ai_insights:
+                    st.download_button(
+                        label="⬇️ Download",
+                        data=st.session_state.ai_insights,
+                        file_name="sprint_ai_insights.txt",
+                        mime="text/plain",
+                        use_container_width=True
+                    )
             
             # Display cached insights
             if "ai_insights" in st.session_state and st.session_state.ai_insights:
@@ -809,6 +819,12 @@ if df is not None:
             # Initialize chat history in session state
             if "chat_history" not in st.session_state:
                 st.session_state.chat_history = []
+
+            # Clear chat button
+            if st.session_state.chat_history:
+                if st.button("🗑️ Clear Chat History", use_container_width=False):
+                    st.session_state.chat_history = []
+                    st.rerun()
             
             # Display chat history
             for message in st.session_state.chat_history:
