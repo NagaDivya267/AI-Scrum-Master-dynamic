@@ -806,12 +806,56 @@ if df is not None:
 
         # --- WHAT IF SIMULATION ---
         st.subheader("🔮 What-If Analysis")
-        extra_sp = st.slider("If additional SP completed today:", 0, 20, 5, key="what_if_sp")
+        extra_sp = st.slider("If additional SP completed:", 0, 30, 5)
 
-        simulated_remaining = max(0, metrics["remaining_sp"] - extra_sp)
-        simulated_risk = (simulated_remaining / metrics["total_sp"] * 100) if metrics["total_sp"] > 0 else 0
+        # Current values
+        total_sp = metrics["total_sp"]
+        completed_sp = metrics["completed_sp"]
+        remaining_sp = metrics["remaining_sp"]
 
-        st.info(f"👉 New Risk: {round(simulated_risk)}%")
+        # --- Simulated completion ---
+        sim_completed = completed_sp + extra_sp
+        sim_remaining = max(0, total_sp - sim_completed)
+
+        # --- Predictability ---
+        sim_predictability = (sim_completed / total_sp * 100) if total_sp > 0 else 0
+
+        # --- Spillover ---
+        sim_spillover = (sim_remaining / total_sp * 100) if total_sp > 0 else 0
+
+        # --- Velocity impact ---
+        velocity_metrics = get_velocity_metrics(df)
+        avg_velocity = velocity_metrics["avg_velocity"]
+
+        # How many sprints needed after simulation
+        sprints_needed = sim_remaining / avg_velocity if avg_velocity > 0 else 0
+
+        # --- Confidence Score ---
+        sim_confidence = (
+            0.5 * sim_predictability -
+            0.3 * sim_spillover
+        )
+
+        # --- UI Output ---
+        c1, c2, c3, c4 = st.columns(4)
+
+        c1.metric("📈 Predictability", f"{round(sim_predictability)}%")
+        c2.metric("📉 Spillover Risk", f"{round(sim_spillover)}%")
+        c3.metric("⚡ Sprints Needed", f"{round(sprints_needed, 1)}")
+        c4.metric("🎯 Confidence", f"{round(sim_confidence)}%")
+
+        # --- Insight ---
+        if sim_spillover > 30:
+            st.error("🔴 High spillover risk even after improvement")
+        elif sim_spillover > 15:
+            st.warning("🟡 Moderate spillover risk")
+        else:
+            st.success("🟢 Spillover under control")
+
+        st.info(
+            f"👉 Completing +{extra_sp} SP improves predictability to {round(sim_predictability)}% "
+            f"and reduces spillover to {round(sim_spillover)}%"
+        )
     
     # Tab 4: AI Insights
     with tab4:
