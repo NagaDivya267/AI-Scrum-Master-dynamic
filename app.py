@@ -3,7 +3,6 @@ import pandas as pd
 import csv
 import os
 import re
-import random
 import datetime
 from groq import Groq
 
@@ -127,11 +126,7 @@ VELOCITY_GAP_THRESHOLD = 20    # velocity_gap_pct above this → "Velocity misma
 
 # Sidebar - API Key Setup
 st.sidebar.markdown("### 🧭 Navigation")
-page = st.sidebar.radio(
-    "Go to",
-    ["📊 Sprint Analytics"],
-    label_visibility="collapsed"
-)
+st.sidebar.caption("📊 Sprint Analytics")
 st.sidebar.markdown("---")
 
 st.sidebar.markdown("### ⚙️ Configuration")
@@ -187,10 +182,7 @@ else:
     """)
 
 # Title and header
-if page == "📊 Sprint Analytics":
-    st.markdown("# 🚀 AI SCRUM ASSISTANT - with Predictive Analytics")
-else:
-    st.markdown("# 🤖 AI Scrum Master - Retro Assistant")
+st.markdown("# 🚀 AI SCRUM ASSISTANT - with Predictive Analytics")
 st.markdown("---")
 
 def read_from_csv():
@@ -715,7 +707,7 @@ if df is None:
     df = read_from_csv()
     pass
 
-if df is not None and page == "📊 Sprint Analytics":
+if df is not None:
     # Create tabs with new AI Insights tab and Chat tab
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 All Data", "📈 Sprint Summary", "🎯 Metrics", "🧠 AI Insights", "💬 Chat"])
     # Tab 1: All Data
@@ -1203,15 +1195,7 @@ if df is not None and page == "📊 Sprint Analytics":
     st.markdown("---")
     st.markdown("*Last updated: Real-time from sprint_data.csv*")
 
-elif page == "📊 Sprint Analytics" and df is None:
+elif df is None:
     st.warning("⚠️ No sprint data loaded. Please upload a CSV file in the sidebar.")
-    # ── Tab 2: Sprint Data ────────────────────────────────────────────────────
-    with retro_tab2:
-        st.header("📊 Sprint Data")
-        if df is not None:
-            st.dataframe(df, use_container_width=True, height=420)
-            st.metric("Total Rows", len(df))
-        else:
-            st.info("No sprint data loaded. Upload a CSV in the sidebar to view data here.")
 
  
