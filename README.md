@@ -5,16 +5,19 @@ An intelligent Sprint management tool powered by Streamlit and OpenAI's GPT mode
 ## Features
 
 ✅ **Sprint Data Management**
+
 - Upload and view sprint data from CSV files
 - Real-time metrics and status tracking
 - Blocked items identification
 
 ✅ **Sprint Analytics**
+
 - Completion rates and velocity tracking
 - Risk assessment and trend analysis
 - Status distribution visualization
 
 ✅ **AI-Powered Insights** (NEW!)
+
 - Sprint health assessment
 - Automated risk detection
 - Root cause analysis
@@ -24,6 +27,7 @@ An intelligent Sprint management tool powered by Streamlit and OpenAI's GPT mode
 ## Setup Instructions
 
 ### 1. Install Dependencies
+
 ```bash
 pip install streamlit pandas groq
 ```
@@ -38,16 +42,20 @@ pip install streamlit pandas groq
 
 ### 3. Configure Your API Key
 
-**Option A: Sidebar Input (Recommended)**
+#### Option A: Sidebar Input (Recommended)
+
 - Run the app: `streamlit run app.py`
 - Paste your Groq API key in the "⚙️ Configuration" panel on the left
 - The key is stored in your session only (not saved)
 
-**Option B: Environment Variable (For Local Development)**
+#### Option B: Environment Variable (For Local Development)
+
 1. Create/edit `.env` file in the project directory:
-   ```
+
+   ```env
    GROQ_API_KEY=gsk_your-api-key-here
    ```
+
 2. The app will automatically load it
 
 ### 4. Run the App
@@ -61,20 +69,24 @@ The app will open at `http://localhost:8502`
 ## How to Use
 
 ### Tab 1: 📊 All Data
+
 - View your complete sprint data in a table
 - See all sprints, stories, and statuses
 
 ### Tab 2: 📈 Sprint Summary
+
 - View completion percentage for each sprint
 - Detailed breakdown of Done/In Progress/To Do items
 - Expand each sprint to see detailed metrics
 
 ### Tab 3: 🎯 Metrics
+
 - Overall statistics (total story points, completion rate, etc.)
 - Status distribution chart
 - View all blocked items
 
 ### Tab 4: 🧠 AI Insights
+
 - Click "🚀 Generate AI Insights" to analyze your sprint
 - Get automated analysis including:
   - **Sprint Health Assessment** - Overall status and trajectory
@@ -86,13 +98,15 @@ The app will open at `http://localhost:8502`
 ## CSV File Format
 
 Your `sprint_data.csv` should have these columns:
-```
+
+```csv
 Sprint,Story,Status,StoryPoints,Blocked
 Sprint 1,Login API,Done,5,No
 Sprint 1,Payment API,Done,8,No
 ```
 
 Required columns:
+
 - **Sprint**: Sprint identifier (e.g., "Sprint 1")
 - **Story**: Story/Task name
 - **Status**: One of "Done", "In Progress", "To Do"
@@ -102,6 +116,7 @@ Required columns:
 ## Security Notes
 
 ⚠️ **Never commit your API key to GitHub!**
+
 - The `.gitignore` file protects `.env` files
 - Use the sidebar input for API keys (not saved to disk)
 - Create a separate API key for testing if needed
@@ -109,6 +124,7 @@ Required columns:
 ## Cost Information
 
 **Groq is COMPLETELY FREE!**
+
 - ✅ No payment method required
 - ✅ No credit card needed
 - ✅ Unlimited API calls (generous free tier)
@@ -118,27 +134,31 @@ Required columns:
 ## Troubleshooting
 
 ### "API Key not found" error
+
 - Make sure you've entered the key in the sidebar
 - Or set the `GROQ_API_KEY` environment variable
 - Restart the Streamlit app
 
 ### "Invalid API key" error
-- Get your key from https://console.groq.com/keys
+
+- Get your key from [Groq Console Keys](https://console.groq.com/keys)
 - Make sure you copied the entire key
 - Try creating a new API key in the Groq console
 
 ### "CSV file not found" error
+
 - Ensure `sprint_data.csv` is in the same directory as `app.py`
 - Check the file path is correct
 
 ### Groq is fast but sometimes slow?
+
 - Groq is free but popular - sometimes queue times happen
 - Wait a few seconds and try again
-- Check https://status.groq.com for service status
+- Check [Groq Status](https://status.groq.com) for service status
 
 ## File Structure
 
-```
+```text
 AI_Scrum_Assistant/
 ├── app.py                  # Main Streamlit application
 ├── sprint_data.csv         # Your sprint data (can be updated anytime)
@@ -151,13 +171,15 @@ AI_Scrum_Assistant/
 ## Next Steps
 
 1. ✅ Install requirements:
+
    ```bash
    pip install streamlit pandas groq
    ```
 
-2. ✅ Get your FREE Groq API key from https://console.groq.com/keys
+2. ✅ Get your FREE Groq API key from [Groq Console Keys](https://console.groq.com/keys)
 
 3. ✅ Run the app:
+
    ```bash
    streamlit run app.py
    ```
@@ -169,8 +191,9 @@ AI_Scrum_Assistant/
 ## Support
 
 For issues or questions:
-- Streamlit docs: https://docs.streamlit.io
-- OpenAI docs: https://platform.openai.com/docs
+
+- Streamlit docs: [Streamlit Documentation](https://docs.streamlit.io)
+- OpenAI docs: [OpenAI Documentation](https://platform.openai.com/docs)
 - GitHub issues: Create an issue in your repository
 
 Enjoy your AI-powered Sprint Assistant! 🚀
