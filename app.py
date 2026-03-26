@@ -129,7 +129,7 @@ VELOCITY_GAP_THRESHOLD = 20    # velocity_gap_pct above this → "Velocity misma
 st.sidebar.markdown("### 🧭 Navigation")
 page = st.sidebar.radio(
     "Go to",
-    ["📊 Sprint Analytics", "🎡 Retro Assistant"],
+    ["📊 Sprint Analytics"],
     label_visibility="collapsed"
 )
 st.sidebar.markdown("---")
