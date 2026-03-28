@@ -420,6 +420,45 @@ with tab3:
                         st.warning("Please add something")
             else:
                 st.info("🎊 All responses collected! Session complete.")
+        
+        # ======================= SCRUM MASTER VIEW =======================
+        st.divider()
+        is_scrum_master = st.checkbox("👑 Scrum Master View")
+        
+        if is_scrum_master:
+            st.write("### 📊 Team Responses Dashboard")
+            
+            try:
+                # Read all responses from Google Sheet
+                data = response_sheet.get_all_records()
+                if data:
+                    df = pd.DataFrame(data)
+                    
+                    # Get current question from config
+                    current_question = config_sheet.acell("A1").value
+                    
+                    # Filter responses for current question
+                    if current_question:
+                        filtered_df = df[df["Question"] == current_question]
+                        
+                        if not filtered_df.empty:
+                            st.write(f"**Current Question:** {current_question}")
+                            st.write(f"**Responses Received:** {len(filtered_df)}")
+                            st.divider()
+                            
+                            # Display each response nicely
+                            st.write("### 🧾 Detailed Inputs")
+                            for i, row in filtered_df.iterrows():
+                                st.write(f"🗨️ {row['Response']}")
+                                st.write("---")
+                        else:
+                            st.info("No responses yet for this question.")
+                    else:
+                        st.warning("No current question set. Start spinning!")
+                else:
+                    st.info("No responses collected yet.")
+            except Exception as sm_error:
+                st.error(f"Unable to load scrum master view: {sm_error}")
     except Exception as error:
         st.error(f"Unable to load spin wheel data: {error}")
 
