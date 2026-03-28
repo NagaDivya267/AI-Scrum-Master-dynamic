@@ -1,4 +1,5 @@
 import os
+import random
 from datetime import datetime
 
 import gspread
@@ -65,6 +66,19 @@ GOOGLE_SHEETS_SCOPE = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive",
 ]
+SPRINT_WORKSHEET_NAME = "Sprint Insights"
+CONFIG_WORKSHEET_NAME = "Config"
+RESPONSES_WORKSHEET_NAME = "Responses"
+spin_questions = [
+    "What went well this sprint?",
+    "What did not go well?",
+    "Biggest blocker?",
+    "What should we improve?",
+    "Where did we waste time?",
+    "What frustrated you?",
+    "One improvement for next sprint?",
+    "Any risks we ignored?",
+]
 
 
 def get_credentials_file_path() -> str:
@@ -87,7 +101,7 @@ def get_credentials_file_path() -> str:
 
 
 @st.cache_resource(show_spinner=False)
-def get_google_sheet():
+def get_google_workbook():
     if "gcp_service_account" in st.secrets:
         credentials = Credentials.from_service_account_info(
             dict(st.secrets["gcp_service_account"]),
@@ -100,11 +114,19 @@ def get_google_sheet():
         )
 
     client = gspread.authorize(credentials)
-    return client.open(GOOGLE_SHEET_NAME).sheet1
+    return client.open(GOOGLE_SHEET_NAME)
+
+
+def get_or_create_worksheet(title: str, rows: int = 100, cols: int = 20):
+    workbook = get_google_workbook()
+    try:
+        return workbook.worksheet(title)
+    except gspread.WorksheetNotFound:
+        return workbook.add_worksheet(title=title, rows=rows, cols=cols)
 
 
 def save_sprint_data_to_google_sheet(df: pd.DataFrame, columns: list[str]) -> None:
-    sheet = get_google_sheet()
+    sheet = get_or_create_worksheet(SPRINT_WORKSHEET_NAME, rows=200, cols=len(columns) + 5)
     rows = df.reindex(columns=columns).fillna("").values.tolist()
 
     sheet.clear()
@@ -184,9 +206,8 @@ with tab2:
 
     if sheet_col1.button("Test Sheet"):
         try:
-            sheet = get_google_sheet()
-            sheet.append_row(["Connection test", datetime.now().isoformat(), "Working"])
-            st.success("Connected successfully!")
+            workbook = get_google_workbook()
+            st.success(f"Connected successfully to {workbook.title}!")
         except Exception as error:
             st.error(f"Google Sheets connection failed: {error}")
 
@@ -268,3 +289,49 @@ with tab2:
             st.error("⚠️ High scope creep")
         else:
             st.success("✅ Stable scope")
+
+with tab3:
+    st.subheader("🎡 Team Spin Wheel")
+
+    try:
+        config_sheet = get_or_create_worksheet(CONFIG_WORKSHEET_NAME, rows=20, cols=5)
+        response_sheet = get_or_create_worksheet(RESPONSES_WORKSHEET_NAME, rows=500, cols=10)
+
+        if st.button("🎯 Spin (One Question for Team)"):
+            question = random.choice(spin_questions)
+            config_sheet.update_acell("A1", question)
+            st.success(f"Selected: {question}")
+
+        current_question = config_sheet.acell("A1").value
+
+        if current_question:
+            st.write("### 📌 Current Question")
+            st.info(current_question)
+
+            user_input = st.text_area("Enter your response")
+
+            if st.button("Submit Response"):
+                if user_input.strip():
+                    existing_header = response_sheet.row_values(1)
+                    expected_header = ["Timestamp", "Question", "Response"]
+
+                    if existing_header != expected_header:
+                        response_sheet.clear()
+                        response_sheet.append_row(expected_header)
+
+                    response_sheet.append_row([
+                        datetime.now().isoformat(),
+                        current_question,
+                        user_input.strip(),
+                    ])
+                    st.success("Response submitted!")
+                else:
+                    st.warning("Please add something")
+        else:
+            st.warning("No question is selected")
+    except Exception as error:
+        st.error(f"Unable to load spin wheel data: {error}")
+
+with tab4:
+    st.subheader("Action Tracker")
+    st.info("Action Tracker setup is pending.")
