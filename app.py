@@ -399,7 +399,7 @@ with tab3:
             st.caption(f"🎡 {progress_text}")
 
             if not spins_complete:  # Only show input if spins not complete
-                user_input = st.text_area("💬 Your response")
+                user_input = st.text_area("💬 Your response", key=f"response_{current_question}")
 
                 if st.button("Submit Response"):
                     if user_input.strip():
@@ -440,10 +440,7 @@ with tab4:
         if df.empty:
             st.warning("No responses yet")
         else:
-            st.write("### 📊 All Team Responses")
-            st.dataframe(df, use_container_width=True)
-
-            st.write("### 🔍 Filter by Question")
+            st.write("###  Filter by Question")
             questions = df["Question"].dropna().unique()
 
             if len(questions) == 0:
