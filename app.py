@@ -1,4 +1,11 @@
+import os
+from datetime import datetime
+
+import gspread
+import pandas as pd
 import streamlit as st
+from google.oauth2.service_account import Credentials
+
 # Create Tabs
 tab1, tab2, tab3, tab4 = st.tabs([
     "😊 Mood",
@@ -51,10 +58,59 @@ if selected_mood:
         st.warning("Team is okay but needs improvement")
     else:
         st.success("Team is performing great 🚀")
-import pandas as pd
-import os
 
 FILE_NAME = "sprint_data.csv"
+GOOGLE_SHEET_NAME = "Retro Data"
+GOOGLE_SHEETS_SCOPE = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive",
+]
+
+
+def get_credentials_file_path() -> str:
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    candidate_paths = [
+        os.path.join(base_dir, "credentials.json"),
+        os.path.join(base_dir, "..", "credentials.json"),
+        os.path.join(base_dir, "..", "..", "credentials.json"),
+        os.path.join(base_dir, "..", "..", "..", "credentials.json"),
+    ]
+
+    for candidate_path in candidate_paths:
+        resolved_path = os.path.abspath(candidate_path)
+        if os.path.exists(resolved_path):
+            return resolved_path
+
+    raise FileNotFoundError(
+        "credentials.json was not found. Add it near the app or configure st.secrets['gcp_service_account']."
+    )
+
+
+@st.cache_resource(show_spinner=False)
+def get_google_sheet():
+    if "gcp_service_account" in st.secrets:
+        credentials = Credentials.from_service_account_info(
+            dict(st.secrets["gcp_service_account"]),
+            scopes=GOOGLE_SHEETS_SCOPE,
+        )
+    else:
+        credentials = Credentials.from_service_account_file(
+            get_credentials_file_path(),
+            scopes=GOOGLE_SHEETS_SCOPE,
+        )
+
+    client = gspread.authorize(credentials)
+    return client.open(GOOGLE_SHEET_NAME).sheet1
+
+
+def save_sprint_data_to_google_sheet(df: pd.DataFrame, columns: list[str]) -> None:
+    sheet = get_google_sheet()
+    rows = df.reindex(columns=columns).fillna("").values.tolist()
+
+    sheet.clear()
+    sheet.append_row(columns)
+    if rows:
+        sheet.append_rows(rows)
 
 
 def ensure_spill_over_column(df: pd.DataFrame) -> pd.DataFrame:
@@ -66,10 +122,6 @@ def ensure_spill_over_column(df: pd.DataFrame) -> pd.DataFrame:
             - pd.to_numeric(df["Completed"], errors="coerce").fillna(0)
         )
     return df
-
-with tab2:
-    import pandas as pd
-import streamlit as st
 
 with tab2:
     st.subheader("Sprint Insights Tracker")
@@ -125,6 +177,25 @@ with tab2:
             st.session_state.sprint_df = ensure_spill_over_column(st.session_state.sprint_df).reindex(columns=sprint_columns)
 
             st.success("Sprint added!")
+
+    # ------------------ GOOGLE SHEETS ------------------
+    st.write("### Google Sheets")
+    sheet_col1, sheet_col2 = st.columns(2)
+
+    if sheet_col1.button("Test Sheet"):
+        try:
+            sheet = get_google_sheet()
+            sheet.append_row(["Connection test", datetime.now().isoformat(), "Working"])
+            st.success("Connected successfully!")
+        except Exception as error:
+            st.error(f"Google Sheets connection failed: {error}")
+
+    if sheet_col2.button("Save Sprint Data"):
+        try:
+            save_sprint_data_to_google_sheet(st.session_state.sprint_df, sprint_columns)
+            st.success("Sprint data saved to Google Sheet successfully!")
+        except Exception as error:
+            st.error(f"Unable to save sprint data: {error}")
 
     # ------------------ EDITABLE TABLE ------------------
     st.write("### Edit Sprint Data")
