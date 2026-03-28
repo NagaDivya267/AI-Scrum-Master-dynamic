@@ -1,6 +1,10 @@
+import io
+import math
 import os
 import random
+import struct
 import time
+import wave
 from datetime import datetime
 
 import gspread
@@ -79,6 +83,31 @@ spin_questions = [
     "🎯 One experiment for next sprint?",
     "🤝 Team collaboration feedback?",
 ]
+
+
+@st.cache_data(show_spinner=False)
+def generate_spin_sound() -> bytes:
+    """Synthesise a short spinning-wheel whoosh as WAV bytes (stdlib only)."""
+    sample_rate = 44100
+    duration = 1.5
+    num_samples = int(sample_rate * duration)
+    buf = io.BytesIO()
+    with wave.open(buf, "w") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        frames = []
+        for i in range(num_samples):
+            t = i / sample_rate
+            progress = t / duration
+            # frequency sweeps 800 Hz → 200 Hz (wheel slowing down)
+            freq = 800 * (1 - progress) + 200 * progress
+            # amplitude envelope peaks in the middle
+            amplitude = 32767 * math.sin(math.pi * progress) * 0.7
+            sample = int(amplitude * math.sin(2 * math.pi * freq * t))
+            frames.append(struct.pack("<h", max(-32768, min(32767, sample))))
+        wav.writeframes(b"".join(frames))
+    return buf.getvalue()
 
 
 def get_credentials_file_path() -> str:
@@ -297,11 +326,6 @@ with tab3:
         config_sheet = get_or_create_worksheet(CONFIG_WORKSHEET_NAME, rows=20, cols=5)
         response_sheet = get_or_create_worksheet(RESPONSES_WORKSHEET_NAME, rows=500, cols=10)
 
-        # Optional spin audio
-        _audio_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "spin.mp3")
-        if os.path.exists(_audio_path):
-            st.audio(_audio_path)
-
         if st.button("🎯 Spin the Wheel"):
             placeholder = st.empty()
 
@@ -315,6 +339,7 @@ with tab3:
             config_sheet.update_acell("A1", final_question)
             placeholder.markdown(f"## 🎯 Final Question:\n### {final_question}")
             st.balloons()
+            st.audio(generate_spin_sound(), format="audio/wav")
 
         current_question = config_sheet.acell("A1").value
 
