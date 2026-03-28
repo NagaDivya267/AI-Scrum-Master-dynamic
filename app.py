@@ -484,6 +484,9 @@ with tab4:
 
     col_refresh, _ = st.columns([1, 5])
     if col_refresh.button("🔄 Refresh Data"):
+        for key in ["ai_last_question", "ai_chat_history", "ai_clustered_data"]:
+            if key in st.session_state:
+                del st.session_state[key]
         st.rerun()
 
     try:
@@ -561,83 +564,148 @@ with tab4:
                 else:
                     st.info("No discussion points saved yet.")
 
-                # ---- AI Analysis ----
-                st.write("### 🤖 AI Scrum Master Analysis")
-                ai_cache_key = f"ai_output_{selected_question}"
-                if st.button("Generate Smart Insights", key=f"ai_insights_{selected_question}"):
-                    api_key, key_source, secret_keys = get_openai_api_key()
-                    if not api_key:
-                        st.error("OpenAI key is missing. Add OPENAI_API_KEY in Streamlit secrets and restart the app.")
-                        st.caption(
-                            f"Diagnostics: key_source={key_source}; top_level_secrets={', '.join(secret_keys) if secret_keys else 'none'}"
-                        )
-                    else:
-                        sprint_df = st.session_state.get("sprint_df", pd.DataFrame())
-                        has_sprint = not sprint_df.empty
-                        has_discussion = not filtered_discussion.empty
+                # ---- AI Analysis: Team Inputs -> Clustering -> Summary -> Chat Follow-ups ----
+                st.write("### 🤖 AI Scrum Master")
 
-                        if not has_sprint and not has_discussion:
-                            st.warning("Please ensure sprint data and/or discussion data are available.")
-                        else:
-                            # Compact sprint summary — CSV-style, no repeated labels per row
-                            sprint_summary = ""
-                            if has_sprint:
-                                sprint_summary = "Sprint,Committed,Completed,ScopeAdded,ScopeChange%,SpillOver\n"
-                                for _, srow in sprint_df.tail(6).iterrows():
-                                    committed = int(srow.get("Committed", 0) or 0)
-                                    scope_added = int(srow.get("Scope Added", 0) or 0)
-                                    scope_pct = round((scope_added / committed * 100), 1) if committed > 0 else 0
-                                    sprint_summary += (
-                                        f"{srow.get('Sprint','?')},"
-                                        f"{committed},"
-                                        f"{int(srow.get('Completed', 0) or 0)},"
-                                        f"{scope_added},"
-                                        f"{scope_pct},"
-                                        f"{int(srow.get('Spill Over', 0) or 0)}\n"
-                                    )
+                if "ai_chat_history" not in st.session_state:
+                    st.session_state.ai_chat_history = []
+                if "ai_clustered_data" not in st.session_state:
+                    st.session_state.ai_clustered_data = ""
+                if "ai_last_question" not in st.session_state:
+                    st.session_state.ai_last_question = None
 
-                            # Deduplicate and trim discussion text
-                            discussion_text = ""
-                            if has_discussion:
-                                seen = set()
-                                unique_lines = []
-                                for line in filtered_discussion["Discussion"].dropna().astype(str):
-                                    stripped = line.strip()
-                                    if stripped and stripped not in seen:
-                                        seen.add(stripped)
-                                        unique_lines.append(stripped)
-                                discussion_text = "\n".join(unique_lines)[:3000]
+                # Reset conversation context when question changes.
+                if st.session_state.ai_last_question != selected_question:
+                    st.session_state.ai_chat_history = []
+                    st.session_state.ai_clustered_data = ""
+                    st.session_state.ai_last_question = selected_question
 
-                            # Compact prompt — no filler sections, tight directives
-                            prompt = (
-                                "Scrum Master analyst. Use ONLY provided data, no assumptions, no generic Agile advice.\n\n"
-                                f"SPRINT DATA (CSV):\n{sprint_summary or 'none'}\n\n"
-                                f"TEAM DISCUSSION:\n{discussion_text or 'none'}\n\n"
-                                "Reply in this exact format (bullet points, concise):\n"
-                                "📊 Sprint Performance Insight:\n- ...\n\n"
-                                "🧠 Team Sentiment Insight:\n- ...\n\n"
-                                "🚀 Actionable Recommendations:\n- ...\n"
-                                "If data is insufficient write: insufficient data"
+                api_key, key_source, secret_keys = get_openai_api_key()
+                if not api_key:
+                    st.error("OpenAI key is missing. Add OPENAI_API_KEY in Streamlit secrets and restart the app.")
+                    st.caption(
+                        f"Diagnostics: key_source={key_source}; top_level_secrets={', '.join(secret_keys) if secret_keys else 'none'}"
+                    )
+                else:
+                    sprint_df = st.session_state.get("sprint_df", pd.DataFrame())
+
+                    sprint_summary = ""
+                    if not sprint_df.empty:
+                        sprint_summary = "Sprint,Committed,Completed,ScopeAdded\n"
+                        for _, srow in sprint_df.tail(6).iterrows():
+                            sprint_summary += (
+                                f"{srow.get('Sprint', '?')},"
+                                f"{int(srow.get('Committed', 0) or 0)},"
+                                f"{int(srow.get('Completed', 0) or 0)},"
+                                f"{int(srow.get('Scope Added', 0) or 0)}\n"
                             )
 
+                    discussion_text = ""
+                    if not filtered_discussion.empty:
+                        seen = set()
+                        unique_lines = []
+                        for line in filtered_discussion["Discussion"].dropna().astype(str):
+                            stripped = line.strip()
+                            if stripped and stripped not in seen:
+                                seen.add(stripped)
+                                unique_lines.append(stripped)
+                        discussion_text = "\n".join(unique_lines)[:3000]
+
+                    system_prompt = (
+                        "You are an experienced Scrum Master assistant. "
+                        "Use ONLY the provided data. No assumptions. If data is insufficient, say 'Not enough data'.\n\n"
+                        f"Selected Question: {selected_question}\n"
+                        f"Sprint Data:\n{sprint_summary or 'none'}\n"
+                        f"Team Discussions:\n{discussion_text or 'none'}"
+                    )
+
+                    def generate_clustered_summary(client: OpenAI) -> str:
+                        cluster_prompt = (
+                            "Cluster similar discussion responses.\n"
+                            "Output:\n"
+                            "🔹 Theme: <name>\n- Description: ...\n- Mentions: <count>\n\n"
+                            "⚠️ Key Problems:\n- ...\n\n"
+                            "✅ Positive Signals:\n- ..."
+                        )
+
+                        response = client.chat.completions.create(
+                            model="gpt-4.1-mini",
+                            messages=[
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": cluster_prompt},
+                            ],
+                            temperature=0.2,
+                            max_tokens=500,
+                        )
+                        return response.choices[0].message.content or "Not enough data"
+
+                    if st.button("Generate Smart Insights", key=f"ai_generate_{selected_question}"):
+                        if discussion_text.strip() == "":
+                            st.warning("No discussion data available")
+                        else:
                             try:
                                 client = OpenAI(api_key=api_key)
-                                with st.spinner("Generating AI insights..."):
-                                    response = client.chat.completions.create(
-                                        model="gpt-4.1-mini",
-                                        messages=[{"role": "user", "content": prompt}],
-                                        temperature=0.2,
-                                        max_tokens=600,
-                                    )
-                                ai_output = response.choices[0].message.content or "Not enough data to derive insight"
-                                # Cache result so re-clicking doesn't re-call the API
-                                st.session_state[ai_cache_key] = ai_output
+                                with st.spinner("Generating clustered insights..."):
+                                    clustered_output = generate_clustered_summary(client)
+
+                                st.session_state.ai_clustered_data = clustered_output
+                                st.session_state.ai_chat_history = [
+                                    {"role": "assistant", "content": clustered_output}
+                                ]
+                                st.rerun()
                             except Exception as ai_error:
                                 st.error(f"Unable to generate AI insights: {ai_error}")
 
-                # Show cached result if available (avoids repeated API calls)
-                if ai_cache_key in st.session_state:
-                    st.write("### 📊 AI Insights")
-                    st.markdown(st.session_state[ai_cache_key])
+                    # Display chat history
+                    for msg in st.session_state.ai_chat_history:
+                        with st.chat_message(msg["role"]):
+                            st.markdown(msg["content"])
+
+                    user_follow_up = st.chat_input(
+                        "Ask follow-up (e.g., top blockers, trimmed actions, owner-wise tasks)",
+                        key=f"ai_chat_input_{selected_question}",
+                    )
+
+                    if user_follow_up:
+                        st.session_state.ai_chat_history.append(
+                            {"role": "user", "content": user_follow_up}
+                        )
+
+                        history = st.session_state.ai_chat_history[-6:]
+                        message_payload: list[dict[str, str]] = [
+                            {
+                                "role": "system",
+                                "content": system_prompt
+                                + "\n\nClustered Insights:\n"
+                                + str(st.session_state.ai_clustered_data or "none"),
+                            }
+                        ]
+                        for entry in history:
+                            role = str(entry.get("role", "user"))
+                            content = str(entry.get("content", ""))
+                            message_payload.append({"role": role, "content": content})
+
+                        try:
+                            client = OpenAI(api_key=api_key)
+                            with st.spinner("Generating follow-up insight..."):
+                                response = client.chat.completions.create(
+                                    model="gpt-4.1-mini",
+                                    messages=message_payload,  # type: ignore[arg-type]
+                                    temperature=0.2,
+                                    max_tokens=450,
+                                )
+
+                            reply = response.choices[0].message.content or "Not enough data"
+                            st.session_state.ai_chat_history.append(
+                                {"role": "assistant", "content": reply}
+                            )
+                            st.rerun()
+                        except Exception as ai_error:
+                            st.error(f"Unable to generate follow-up insight: {ai_error}")
+
+                    if st.button("🧹 Clear Chat", key=f"ai_clear_{selected_question}"):
+                        st.session_state.ai_chat_history = []
+                        st.session_state.ai_clustered_data = ""
+                        st.rerun()
     except Exception as error:
         st.error(f"Unable to load Scrum Master dashboard: {error}")
