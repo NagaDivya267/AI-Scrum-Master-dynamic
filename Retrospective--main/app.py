@@ -45,9 +45,9 @@ if selected_mood:
 
         st.metric("Average Mood", f"{avg_mood:.2f}")
 
-    if avg_mood < 2.5:
+    if avg_mood < 2.5: # type: ignore
         st.error("Team is struggling 😟")
-    elif avg_mood < 4:
+    elif avg_mood < 4: # type: ignore
         st.warning("Team is okay but needs improvement")
     else:
         st.success("Team is performing great 🚀")
@@ -56,6 +56,17 @@ import os
 
 FILE_NAME = "sprint_data.csv"
 
+
+def ensure_spill_over_column(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    if all(col in df.columns for col in ["Committed", "Scope Added", "Completed"]):
+        df["Spill Over"] = (
+            pd.to_numeric(df["Committed"], errors="coerce").fillna(0)
+            + pd.to_numeric(df["Scope Added"], errors="coerce").fillna(0)
+            - pd.to_numeric(df["Completed"], errors="coerce").fillna(0)
+        )
+    return df
+
 with tab2:
     import pandas as pd
 import streamlit as st
@@ -63,11 +74,18 @@ import streamlit as st
 with tab2:
     st.subheader("Sprint Insights Tracker")
 
+    sprint_columns = ["Sprint", "Committed", "Completed", "Scope Added", "Spill Over"]
+
     # Initialize storage
     if "sprint_df" not in st.session_state:
         st.session_state.sprint_df = pd.DataFrame(
-            columns=["Sprint", "Committed", "Completed", "Scope Added"]
+            columns=sprint_columns
         )
+        st.session_state.sprint_df = ensure_spill_over_column(st.session_state.sprint_df)
+
+    # Always recompute and reorder columns before rendering so Spill Over is visible.
+    st.session_state.sprint_df = ensure_spill_over_column(st.session_state.sprint_df)
+    st.session_state.sprint_df = st.session_state.sprint_df.reindex(columns=sprint_columns)
 
     # ------------------ OPTION 1: CSV Upload ------------------
     st.write("### Upload CSV")
@@ -78,7 +96,7 @@ with tab2:
 
         required_cols = ["Sprint", "Committed", "Completed", "Scope Added"]
         if all(col in df_uploaded.columns for col in required_cols):
-            st.session_state.sprint_df = df_uploaded.tail(6)
+            st.session_state.sprint_df = ensure_spill_over_column(df_uploaded.tail(6)).reindex(columns=sprint_columns)
             st.success("CSV uploaded successfully!")
         else:
             st.error("CSV must contain: Sprint, Committed, Completed, Scope Added")
@@ -104,6 +122,7 @@ with tab2:
                 [st.session_state.sprint_df, new_row],
                 ignore_index=True
             ).tail(6)
+            st.session_state.sprint_df = ensure_spill_over_column(st.session_state.sprint_df).reindex(columns=sprint_columns)
 
             st.success("Sprint added!")
 
@@ -113,10 +132,12 @@ with tab2:
     edited_df = st.data_editor(
         st.session_state.sprint_df,
         num_rows="dynamic",
+        column_order=sprint_columns,
+        disabled=["Spill Over"],
         use_container_width=True
     )
 
-    st.session_state.sprint_df = edited_df
+    st.session_state.sprint_df = ensure_spill_over_column(edited_df).reindex(columns=sprint_columns)
 
     # ------------------ DELETE OPTION ------------------
     st.write("### Delete Sprint")
@@ -131,6 +152,7 @@ with tab2:
             st.session_state.sprint_df = st.session_state.sprint_df[
                 st.session_state.sprint_df["Sprint"] != sprint_to_delete
             ]
+            st.session_state.sprint_df = ensure_spill_over_column(st.session_state.sprint_df).reindex(columns=sprint_columns)
             st.success("Sprint deleted!")
 
     # ------------------ METRICS ------------------
@@ -146,15 +168,20 @@ with tab2:
         avg_velocity = df["Completed"].mean()
         predictability = (total_completed / total_committed) * 100 if total_committed > 0 else 0
         scope_change = (total_scope / total_committed) * 100 if total_committed > 0 else 0
+        avg_spill_over_percentage = df["Spill Over"].sum() / len(df) if len(df) > 0 else 0
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         col1.metric("Avg Velocity", f"{avg_velocity:.2f}")
         col2.metric("Predictability %", f"{predictability:.2f}%")
         col3.metric("Scope Change %", f"{scope_change:.2f}%")
+        col4.metric("Average Spill Over %", f"{avg_spill_over_percentage:.2f}")
 
         # ------------------ TREND ------------------
         st.write("### Velocity Trend")
         st.line_chart(df.set_index("Sprint")[["Completed"]])
+
+        st.write("### Spill Over Trend")
+        st.line_chart(df.set_index("Sprint")[["Spill Over"]])
 
         # ------------------ INSIGHTS ------------------
         st.write("### Insights")
@@ -170,8 +197,3 @@ with tab2:
             st.error("⚠️ High scope creep")
         else:
             st.success("✅ Stable scope")
-
-        if avg_velocity < 20:
-            st.warning("⚠️ Low velocity trend")
-        else:
-            st.success("🚀 Healthy velocity")
