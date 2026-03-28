@@ -563,6 +563,7 @@ with tab4:
 
                 # ---- AI Analysis ----
                 st.write("### 🤖 AI Scrum Master Analysis")
+                ai_cache_key = f"ai_output_{selected_question}"
                 if st.button("Generate Smart Insights", key=f"ai_insights_{selected_question}"):
                     api_key, key_source, secret_keys = get_openai_api_key()
                     if not api_key:
@@ -578,82 +579,65 @@ with tab4:
                         if not has_sprint and not has_discussion:
                             st.warning("Please ensure sprint data and/or discussion data are available.")
                         else:
-                            # Build sprint summary using actual column names
+                            # Compact sprint summary — CSV-style, no repeated labels per row
                             sprint_summary = ""
                             if has_sprint:
+                                sprint_summary = "Sprint,Committed,Completed,ScopeAdded,ScopeChange%,SpillOver\n"
                                 for _, srow in sprint_df.tail(6).iterrows():
-                                    committed = srow.get("Committed", 0) or 0
-                                    scope_added = srow.get("Scope Added", 0) or 0
+                                    committed = int(srow.get("Committed", 0) or 0)
+                                    scope_added = int(srow.get("Scope Added", 0) or 0)
                                     scope_pct = round((scope_added / committed * 100), 1) if committed > 0 else 0
                                     sprint_summary += (
-                                        f"Sprint: {srow.get('Sprint', 'N/A')} | "
-                                        f"Committed: {committed} | "
-                                        f"Completed: {srow.get('Completed', 0)} | "
-                                        f"Scope Added: {scope_added} | "
-                                        f"Scope Change: {scope_pct}% | "
-                                        f"Spill Over: {srow.get('Spill Over', 0)}\n"
+                                        f"{srow.get('Sprint','?')},"
+                                        f"{committed},"
+                                        f"{int(srow.get('Completed', 0) or 0)},"
+                                        f"{scope_added},"
+                                        f"{scope_pct},"
+                                        f"{int(srow.get('Spill Over', 0) or 0)}\n"
                                     )
 
+                            # Deduplicate and trim discussion text
                             discussion_text = ""
                             if has_discussion:
-                                discussion_text = "\n".join(
-                                    filtered_discussion["Discussion"].dropna().astype(str).tolist()
-                                ).strip()[:8000]
+                                seen = set()
+                                unique_lines = []
+                                for line in filtered_discussion["Discussion"].dropna().astype(str):
+                                    stripped = line.strip()
+                                    if stripped and stripped not in seen:
+                                        seen.add(stripped)
+                                        unique_lines.append(stripped)
+                                discussion_text = "\n".join(unique_lines)[:3000]
 
-                            prompt = f"""You are a highly experienced Scrum Master analyzing sprint performance.
-
-Use ONLY the data provided. Do NOT assume anything.
-
---- Sprint Metrics (Last 6 Sprints) ---
-{sprint_summary if sprint_summary else "No sprint data provided."}
-
---- Team Discussions ---
-{discussion_text if discussion_text else "No discussion data provided."}
-
-Your task:
-1. Correlate sprint performance with team discussions
-2. Identify real patterns (not generic)
-3. Explain WHY issues are happening
-4. Suggest practical improvements
-
-Rules:
-- Be specific and realistic
-- Avoid generic Agile textbook answers
-- No hallucination
-- If data is weak, say "insufficient data"
-
-Output format:
-
-📊 Sprint Performance Insight:
-- ...
-
-🧠 Team Sentiment Insight:
-- ...
-🚀 Actionable Recommendations:
-- ...
-- ...
-- ...
-"""
+                            # Compact prompt — no filler sections, tight directives
+                            prompt = (
+                                "Scrum Master analyst. Use ONLY provided data, no assumptions, no generic Agile advice.\n\n"
+                                f"SPRINT DATA (CSV):\n{sprint_summary or 'none'}\n\n"
+                                f"TEAM DISCUSSION:\n{discussion_text or 'none'}\n\n"
+                                "Reply in this exact format (bullet points, concise):\n"
+                                "📊 Sprint Performance Insight:\n- ...\n\n"
+                                "🧠 Team Sentiment Insight:\n- ...\n\n"
+                                "🚀 Actionable Recommendations:\n- ...\n"
+                                "If data is insufficient write: insufficient data"
+                            )
 
                             try:
                                 client = OpenAI(api_key=api_key)
                                 with st.spinner("Generating AI insights..."):
                                     response = client.chat.completions.create(
                                         model="gpt-4.1-mini",
-                                        messages=[
-                                            {
-                                                "role": "system",
-                                                "content": "You are a practical Scrum Master assistant. Base insights only on provided data.",
-                                            },
-                                            {"role": "user", "content": prompt},
-                                        ],
+                                        messages=[{"role": "user", "content": prompt}],
                                         temperature=0.2,
-                                        max_tokens=900,
+                                        max_tokens=600,
                                     )
                                 ai_output = response.choices[0].message.content or "Not enough data to derive insight"
-                                st.write("### 📊 AI Insights")
-                                st.markdown(ai_output)
+                                # Cache result so re-clicking doesn't re-call the API
+                                st.session_state[ai_cache_key] = ai_output
                             except Exception as ai_error:
                                 st.error(f"Unable to generate AI insights: {ai_error}")
+
+                # Show cached result if available (avoids repeated API calls)
+                if ai_cache_key in st.session_state:
+                    st.write("### 📊 AI Insights")
+                    st.markdown(st.session_state[ai_cache_key])
     except Exception as error:
         st.error(f"Unable to load Scrum Master dashboard: {error}")
