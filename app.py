@@ -887,6 +887,20 @@ if df is not None:
             fig_gauge.update_layout(margin=dict(t=30, b=5, l=10, r=10), height=200, paper_bgcolor="rgba(0,0,0,0)")
             st.plotly_chart(fig_gauge, use_container_width=True)
 
+        with st.expander("📖 How is Success Probability measured?", expanded=False):
+            st.markdown("""
+            **Formula:** `(Completed SP + Average Velocity) / Total Committed SP × 100`
+            
+            - **Completed SP** — Story Points already finished in current sprint
+            - **Average Velocity** — Mean SP completed per sprint (from historical data)
+            - **Total Committed SP** — All Story Points committed for current sprint
+            
+            **Interpretation:**
+            - 🟢 **≥85%** — On track, sprint goal likely achieved
+            - 🟡 **60-85%** — At risk, may need scope adjustment
+            - 🔴 **<60%** — High risk, immediate action required
+            """)
+
         # Key forecast metrics
         st.subheader("📊 Key Forecast Metrics")
         kf1, kf2, kf3 = st.columns(3)
