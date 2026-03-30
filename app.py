@@ -833,6 +833,20 @@ if df is not None:
         completed_health_df = get_completed_sprint_health(df)
         metrics = calculate_advanced_metrics(current_sprint_df, df)
 
+        # DPM-mode fallback: if StoryPoints model is not available, derive from Committed/Completed.
+        dpm_mode = (
+            {"Committed", "Completed"}.issubset(current_sprint_df.columns)
+            and metrics["total_sp"] == 0
+        )
+        if dpm_mode:
+            dpm_committed = pd.to_numeric(current_sprint_df["Committed"], errors="coerce").fillna(0).sum()
+            dpm_completed = pd.to_numeric(current_sprint_df["Completed"], errors="coerce").fillna(0).sum()
+            dpm_remaining = max(0, dpm_committed - dpm_completed)
+            metrics["total_sp"] = dpm_committed
+            metrics["completed_sp"] = dpm_completed
+            metrics["remaining_sp"] = dpm_remaining
+            metrics["risk"] = round((dpm_remaining / dpm_committed * 100) if dpm_committed > 0 else 0)
+
         # ── 1. CURRENT SPRINT HEALTH (top view) ──────────────────────────
         st.subheader(f"🚦 Current Sprint Health ({current_sprint_name})" if current_sprint_name else "🚦 Current Sprint Health")
 
@@ -843,7 +857,10 @@ if df is not None:
         # Traffic signal
         confidence_metrics_top = calculate_sprint_confidence(current_sprint_df, df)
         velocity_metrics_top = get_velocity_metrics(df)
-        predicted_completion_sp_top = min(total_sp, completed_sp + velocity_metrics_top["avg_velocity"])
+        avg_velocity_top = velocity_metrics_top["avg_velocity"]
+        if dpm_mode and {"Completed"}.issubset(df.columns):
+            avg_velocity_top = pd.to_numeric(df["Completed"], errors="coerce").fillna(0).mean()
+        predicted_completion_sp_top = min(total_sp, completed_sp + avg_velocity_top)
         success_probability_top = (predicted_completion_sp_top / total_sp) * 100 if total_sp > 0 else 0
 
         if success_probability_top >= 85:
@@ -878,15 +895,20 @@ if df is not None:
         SPRINT_END_DATE = datetime.date(2026, 4, 7)
         SPRINT_DURATION_DAYS = 10
 
-        committed_sp = pd.to_numeric(current_sprint_df["StoryPoints"], errors="coerce").sum() if not current_sprint_df.empty else 0
-        completed_sp_summary = pd.to_numeric(
-            current_sprint_df.loc[current_sprint_df["Status"].astype(str).str.strip().str.lower() == "done", "StoryPoints"],
-            errors="coerce"
-        ).sum() if not current_sprint_df.empty else 0
-        todo_sp = pd.to_numeric(
-            current_sprint_df.loc[current_sprint_df["Status"].astype(str).str.strip().str.lower() == "to do", "StoryPoints"],
-            errors="coerce"
-        ).sum() if not current_sprint_df.empty else 0
+        if dpm_mode:
+            committed_sp = pd.to_numeric(current_sprint_df["Committed"], errors="coerce").fillna(0).sum()
+            completed_sp_summary = pd.to_numeric(current_sprint_df["Completed"], errors="coerce").fillna(0).sum()
+            todo_sp = max(0, committed_sp - completed_sp_summary)
+        else:
+            committed_sp = pd.to_numeric(current_sprint_df["StoryPoints"], errors="coerce").sum() if not current_sprint_df.empty else 0
+            completed_sp_summary = pd.to_numeric(
+                current_sprint_df.loc[current_sprint_df["Status"].astype(str).str.strip().str.lower() == "done", "StoryPoints"],
+                errors="coerce"
+            ).sum() if not current_sprint_df.empty else 0
+            todo_sp = pd.to_numeric(
+                current_sprint_df.loc[current_sprint_df["Status"].astype(str).str.strip().str.lower() == "to do", "StoryPoints"],
+                errors="coerce"
+            ).sum() if not current_sprint_df.empty else 0
 
         remaining_sp_summary = max(0, committed_sp - completed_sp_summary)
         ideal_burn_rate = committed_sp / SPRINT_DURATION_DAYS if SPRINT_DURATION_DAYS > 0 else 0
@@ -921,14 +943,17 @@ if df is not None:
         # ── 4. PREDICTIVE ANALYSIS ────────────────────────────────────────
         confidence_metrics = calculate_sprint_confidence(current_sprint_df, df)
         velocity_metrics = get_velocity_metrics(df)
+        avg_velocity = velocity_metrics["avg_velocity"]
+        if dpm_mode and {"Completed"}.issubset(df.columns):
+            avg_velocity = pd.to_numeric(df["Completed"], errors="coerce").fillna(0).mean()
 
-        predicted_completion_sp = min(total_sp, completed_sp + velocity_metrics["avg_velocity"])
+        predicted_completion_sp = min(total_sp, completed_sp + avg_velocity)
         success_probability = (predicted_completion_sp / total_sp) * 100 if total_sp > 0 else 0
         spillover_sp = max(0, total_sp - predicted_completion_sp)
 
         active_df = current_sprint_df
-        blocked = len(active_df[active_df['Blocked'].astype(str).str.strip().str.lower() == 'yes'])
-        not_started = len(active_df[active_df['Status'].astype(str).str.strip().str.lower() == 'to do'])
+        blocked = len(active_df[active_df['Blocked'].astype(str).str.strip().str.lower() == 'yes']) if not dpm_mode else 0
+        not_started = len(active_df[active_df['Status'].astype(str).str.strip().str.lower() == 'to do']) if not dpm_mode else 0
         remaining_pct = (remaining_sp / total_sp) * 100 if total_sp > 0 else 0
         blocked_pct = (blocked / len(active_df)) * 100 if len(active_df) > 0 else 0
         not_started_pct = (not_started / len(active_df)) * 100 if len(active_df) > 0 else 0
