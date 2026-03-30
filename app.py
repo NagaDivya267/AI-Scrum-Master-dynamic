@@ -1245,16 +1245,30 @@ box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
             ✅ No Cost Limits - Generate unlimited insights
             """)
         else:
-            # Get current sprint for risk calculation
+            # Get current sprint — same scope as Metrics tab
             current_sprint_df_ai, current_sprint_name_ai = get_current_sprint_df(df)
-            ai_metrics = calculate_metrics(current_sprint_df_ai)
-            ai_risk = ai_metrics["risk_percentage"]
 
-            # Auto coaching alert banner
-            if ai_risk > RISK_HIGH_THRESHOLD:
-                st.error(f"🚨 AI Alert: High sprint risk detected — {round(ai_risk)}% risk index. Immediate action required.")
-            elif ai_risk > RISK_MODERATE_THRESHOLD:
-                st.warning(f"⚠️ AI Alert: Sprint is at risk — {round(ai_risk)}% risk index. Monitor closely.")
+            # Derive success_probability the same way the Metrics tab does
+            _adv = calculate_advanced_metrics(current_sprint_df_ai, df)
+            _total_sp_ai = _adv["total_sp"]
+            _completed_sp_ai = _adv["completed_sp"]
+            # DPM fallback
+            if _total_sp_ai == 0 and {"Committed", "Completed"}.issubset(current_sprint_df_ai.columns):
+                _total_sp_ai = pd.to_numeric(current_sprint_df_ai["Committed"], errors="coerce").fillna(0).sum()
+                _completed_sp_ai = pd.to_numeric(current_sprint_df_ai["Completed"], errors="coerce").fillna(0).sum()
+            _vel_ai = get_velocity_metrics(df)["avg_velocity"]
+            if _total_sp_ai == 0 and {"Completed"}.issubset(df.columns):
+                _vel_ai = pd.to_numeric(df["Completed"], errors="coerce").fillna(0).mean()
+            _pred_ai = min(_total_sp_ai, _completed_sp_ai + _vel_ai)
+            ai_success_prob = (_pred_ai / _total_sp_ai * 100) if _total_sp_ai > 0 else 0
+
+            # Auto coaching alert banner — same thresholds as Metrics tab traffic signal
+            if ai_success_prob < 60:
+                st.error(f"🚨 AI Alert: High risk — {round(ai_success_prob)}% success probability. Immediate action required.")
+            elif ai_success_prob < 85:
+                st.warning(f"⚠️ AI Alert: Sprint is at risk — {round(ai_success_prob)}% success probability. Monitor closely.")
+            else:
+                st.success(f"✅ AI Alert: Sprint on track — {round(ai_success_prob)}% success probability.")
 
             st.markdown("---")
 
