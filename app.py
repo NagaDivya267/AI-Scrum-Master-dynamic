@@ -927,18 +927,75 @@ if df is not None:
 
         day_labels = [f"D{d}" for d in range(SPRINT_DURATION_DAYS + 1)]
         
-        # 5-card metric view
-        cs1, cs2, cs3, cs4, cs5 = st.columns(5)
-        cs1.metric("Committed SP", round(committed_sp))
-        cs2.metric("Ideal Burn Rate", f"{round(ideal_burn_rate)} SP/day")
-        cs3.metric("Completed SP", round(completed_sp_summary))
-        cs4.metric("Required Burn Rate", f"{round(required_burn_rate)} SP/day")
-        cs5.metric("Predictive Spillover Risk", f"{round(spillover_risk_pct)}%")
+        # ── Spillover Risk Banner ──────────────────────────────────────────
+        if spillover_risk_pct < 15:
+            risk_color = "#28a745"
+            risk_text = "🟢 LOW RISK"
+        elif spillover_risk_pct < 30:
+            risk_color = "#fd7e14"
+            risk_text = "🟡 MODERATE RISK"
+        else:
+            risk_color = "#dc3545"
+            risk_text = "🔴 HIGH RISK"
 
-        st.caption(
-            f"Sprint end: {SPRINT_END_DATE} | Sprint duration: {SPRINT_DURATION_DAYS} days | "
-            f"Remaining days: {max(0, remaining_days)} | Remaining SP: {round(remaining_sp_summary)}"
+        st.markdown(f"""
+<div style="
+background-color:{risk_color};
+padding:20px 25px;
+border-radius:14px;
+text-align:center;
+font-size:24px;
+font-weight:bold;
+color:white;
+margin-bottom:16px;
+box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+{risk_text} &nbsp;·&nbsp; {round(spillover_risk_pct)}% Spillover Risk
+</div>
+""", unsafe_allow_html=True)
+
+        # ── Delivery Snapshot ─────────────────────────────────────────────
+        st.markdown("**🟦 Delivery Snapshot**")
+        ds_col1, ds_col2 = st.columns(2)
+        ds_col1.metric("📦 Committed", f"{round(committed_sp)} SP")
+        ds_col2.metric("✅ Completed", f"{round(completed_sp_summary)} SP")
+
+        # ── Execution Speed ───────────────────────────────────────────────
+        st.markdown("**⚡ Execution Speed**")
+        es_col1, es_col2 = st.columns(2)
+        es_col1.metric("🔥 Ideal Burn Rate", f"{round(ideal_burn_rate, 1)} SP/day")
+        es_col2.metric("⚡ Required Burn Rate", f"{round(required_burn_rate, 1)} SP/day")
+
+        # ── Burn Rate Gap ─────────────────────────────────────────────────
+        burn_gap = round(required_burn_rate - ideal_burn_rate, 2)
+        st.metric(
+            "📉 Burn Rate Gap (Required − Ideal)",
+            f"{burn_gap} SP/day",
+            delta=burn_gap,
+            delta_color="inverse",
         )
+
+        # ── Progress Bar ──────────────────────────────────────────────────
+        progress_pct = (completed_sp_summary / committed_sp * 100) if committed_sp > 0 else 0
+        st.progress(min(int(progress_pct), 100))
+        st.caption(
+            f"{round(progress_pct, 1)}% Completed  ·  Sprint end: {SPRINT_END_DATE}  ·  "
+            f"{max(0, remaining_days)} days remaining  ·  {round(remaining_sp_summary)} SP remaining"
+        )
+
+        # ── Burn Rate Comparison Chart ────────────────────────────────────
+        burn_compare_df = pd.DataFrame({
+            "Type": ["🔥 Ideal Burn", "⚡ Required Burn"],
+            "SP / day": [round(ideal_burn_rate, 2), round(required_burn_rate, 2)],
+        })
+        st.bar_chart(burn_compare_df.set_index("Type"))
+
+        # ── Executive Insight ─────────────────────────────────────────────
+        if committed_sp == 0:
+            st.info("ℹ️ No active sprint data available.")
+        elif required_burn_rate > ideal_burn_rate:
+            st.error("⚠️ Current pace is insufficient. Risk of spillover — team needs to accelerate.")
+        else:
+            st.success("✅ Current pace is sufficient to meet the sprint goal.")
 
         # ── 4. PREDICTIVE ANALYSIS ────────────────────────────────────────
         confidence_metrics = calculate_sprint_confidence(current_sprint_df, df)
