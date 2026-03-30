@@ -332,7 +332,8 @@ def get_current_sprint_df(df):
     current_sprint_name = get_current_sprint_name(df)
     if not current_sprint_name:
         return df, None
-    return df[df['Sprint'] == current_sprint_name], current_sprint_name
+    sprint_mask = df['Sprint'].astype(str).str.strip() == str(current_sprint_name).strip()
+    return df[sprint_mask], current_sprint_name
 
 def calculate_sprint_health(committed_sp, completed_sp, added_sp, prod_defects, total_defects):
     """Calculate sprint health score for a completed sprint."""
@@ -430,7 +431,8 @@ def get_completed_sprint_health(df):
             completed_sprint_names.remove(current_sprint_name)
 
     for sprint_name in completed_sprint_names:
-        sprint_df = df[df['Sprint'] == sprint_name]
+        sprint_mask = df['Sprint'].astype(str).str.strip() == str(sprint_name).strip()
+        sprint_df = df[sprint_mask]
         committed_sp = pd.to_numeric(sprint_df['StoryPoints'], errors='coerce').fillna(0).sum()
         completed_sp = pd.to_numeric(
             sprint_df[sprint_df['Status'].astype(str).str.strip().str.lower() == 'done']['StoryPoints'],
@@ -488,7 +490,8 @@ def get_velocity_metrics(df):
     # Calculate Done SP per completed sprint
     sprint_velocities = []
     for sprint_name in completed_sprint_names:
-        sprint_df = df[df['Sprint'] == sprint_name]
+        sprint_mask = df['Sprint'].astype(str).str.strip() == str(sprint_name).strip()
+        sprint_df = df[sprint_mask]
         done_sp = pd.to_numeric(
             sprint_df[sprint_df['Status'].astype(str).str.strip().str.lower() == 'done']['StoryPoints'],
             errors='coerce'
