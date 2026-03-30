@@ -1154,20 +1154,6 @@ box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
             - Sprints Needed = `Simulated Remaining SP / Average Velocity`
             - Confidence Score = `0.5 × Predictability - 0.3 × Spillover`
             """)
-
-            snapshot_df = pd.DataFrame([
-                {"Input / Output": "Total SP", "Value": round(total_sp, 2)},
-                {"Input / Output": "Completed SP (Current)", "Value": round(completed_sp, 2)},
-                {"Input / Output": "Additional SP (Slider)", "Value": round(extra_sp, 2)},
-                {"Input / Output": "Average Velocity", "Value": round(avg_velocity, 2)},
-                {"Input / Output": "Simulated Completed SP", "Value": round(sim_completed, 2)},
-                {"Input / Output": "Simulated Remaining SP", "Value": round(sim_remaining, 2)},
-                {"Input / Output": "Predictability %", "Value": round(sim_predictability, 2)},
-                {"Input / Output": "Spillover Risk %", "Value": round(sim_spillover, 2)},
-                {"Input / Output": "Sprints Needed", "Value": round(sprints_needed, 2)},
-                {"Input / Output": "Confidence Score", "Value": round(sim_confidence, 2)},
-            ])
-            st.dataframe(snapshot_df, use_container_width=True, hide_index=True)
     
     # Tab 4: AI Insights
     with tab4:
