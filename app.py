@@ -915,7 +915,10 @@ if df is not None:
         today = datetime.date.today()
         remaining_days = (SPRINT_END_DATE - today).days
         required_burn_rate = remaining_sp_summary / remaining_days if remaining_days > 0 else remaining_sp_summary
-        spillover_risk_pct = (todo_sp / committed_sp * 100) if committed_sp > 0 else 0
+
+        # Keep confidence and spillover aligned by using one shared forecast model.
+        forecast_spillover_sp = max(0, total_sp - predicted_completion_sp_top)
+        spillover_risk_pct = (forecast_spillover_sp / total_sp * 100) if total_sp > 0 else 0
 
         days_elapsed = SPRINT_DURATION_DAYS - max(0, remaining_days)
         ideal_line = [committed_sp - ideal_burn_rate * d for d in range(SPRINT_DURATION_DAYS + 1)]
