@@ -939,96 +939,10 @@ if df is not None:
         st.markdown("---")
         st.markdown("### 🔮 Predictive Analysis")
 
-        st.markdown("""
-<style>
-.card {
-    padding: 22px 16px;
-    border-radius: 14px;
-    color: #FAFAFA;
-    text-align: center;
-    font-size: 1.15rem;
-    font-weight: 700;
-    line-height: 1.6;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-    border: 1px solid rgba(255,255,255,0.08);
-    transition: transform 0.15s;
-}
-.card:hover { transform: translateY(-2px); }
-.green  { background: linear-gradient(135deg, #1a7a4a, #28a745); }
-.yellow { background: linear-gradient(135deg, #a07800, #ffc107); color: #1a1a1a; }
-.red    { background: linear-gradient(135deg, #8b1a1a, #dc3545); }
-</style>
-""", unsafe_allow_html=True)
-
-        st.subheader("📊 Predictive KPI Dashboard")
-
-        col1, col2, col3, col4, col5 = st.columns(5)
-
-        color1 = get_color(success_probability, 85, 60)
-        col1.markdown(f"""
-<div class="card {color1}">
-    🚀 {round(success_probability)}% <br>
-    Success Probability
-</div>
-""", unsafe_allow_html=True)
-
-        color_pred = get_color((predicted_completion_sp / total_sp * 100) if total_sp > 0 else 0, 85, 60)
-        col2.markdown(f"""
-<div class="card {color_pred}">
-    🎯 {round(predicted_completion_sp)} SP <br>
-    Predicted Completion
-</div>
-""", unsafe_allow_html=True)
-
-        color2 = "red" if spillover_sp > 5 else "green"
-        col3.markdown(f"""
-<div class="card {color2}">
-    📉 {round(spillover_sp)} SP <br>
-    Spillover
-</div>
-""", unsafe_allow_html=True)
-
-        color3 = "green" if risk_index < 30 else "yellow" if risk_index < 60 else "red"
-        col4.markdown(f"""
-<div class="card {color3}">
-    ⚠️ {round(risk_index)} <br>
-    Risk Index
-</div>
-""", unsafe_allow_html=True)
-
-        color4 = get_color(confidence_score, 75, 50)
-        col5.markdown(f"""
-<div class="card {color4}">
-    🏅 {round(confidence_score)}% <br>
-    Confidence Score
-</div>
-""", unsafe_allow_html=True)
-
-        # --- SPRINT HEALTH INDICATOR (compact traffic signal) ---
-        if success_probability >= 85:
-            signal_color = "#28a745"
-            signal_label = "ON TRACK"
-        elif success_probability >= 60:
-            signal_color = "#ffc107"
-            signal_label = "AT RISK"
-        else:
-            signal_color = "#dc3545"
-            signal_label = "HIGH RISK"
-
-        st.markdown(f"""
-<div style="display:flex; align-items:center; gap:10px; margin: 8px 0 16px 0;">
-  <div style="width:18px; height:18px; border-radius:50%; background:{signal_color};
-              box-shadow: 0 0 8px {signal_color}; flex-shrink:0;"></div>
-  <span style="font-size:0.95rem; font-weight:600; color:#C9D1D9;">
-    Sprint Health: <strong style="color:{signal_color};">{signal_label}</strong>
-    &nbsp;·&nbsp; {round(success_probability)}% Confidence
-  </span>
-</div>
-""", unsafe_allow_html=True)
-
-        # --- SPRINT SUCCESS INDICATOR (gauge chart) ---
+        # 1. GAUGE CHART — big, instant understanding
         st.subheader("🎯 Sprint Success Indicator")
         import plotly.graph_objects as go
+
         fig_gauge = go.Figure(go.Indicator(
             mode="gauge+number",
             value=success_probability,
@@ -1050,6 +964,63 @@ if df is not None:
         ))
         fig_gauge.update_layout(margin=dict(t=40, b=10, l=10, r=10), height=280, paper_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig_gauge, use_container_width=True)
+
+        # 2. KEY FORECAST METRICS — 3 clean tiles
+        st.subheader("📊 Key Forecast Metrics")
+        kf1, kf2, kf3 = st.columns(3)
+
+        kf1.metric(
+            "🚀 Forecasted Completion",
+            f"{round(predicted_completion_sp, 1)} SP",
+            delta=f"{round(predicted_completion_sp - total_sp, 1)} vs committed",
+        )
+        kf2.metric(
+            "⚠️ Risk Index",
+            round(risk_index, 1),
+        )
+        kf3.metric(
+            "🎯 Confidence Score",
+            f"{round(confidence_score, 1)}%",
+        )
+
+        # 3. FORECAST VS ACTUAL CHART
+        st.subheader("📈 Forecast vs Actual")
+        chart_df = pd.DataFrame({
+            "Metric": ["Committed", "Forecasted", "Completed"],
+            "Value": [total_sp, round(predicted_completion_sp, 1), completed_sp],
+        })
+        st.bar_chart(chart_df.set_index("Metric"))
+
+        # 4. KEY INSIGHT — 1-line decision
+        st.subheader("🧠 Key Insight")
+        if success_probability > 85:
+            st.success("🟢 Sprint is on track. Maintain current pace.")
+        elif success_probability > 60:
+            st.warning("🟡 Moderate risk. Focus on high-priority stories.")
+        else:
+            st.error("🔴 High risk of spillover. Immediate intervention required.")
+
+        # 5. TRAFFIC SIGNAL
+        if success_probability >= 85:
+            signal_color = "#28a745"
+            signal_label = "ON TRACK"
+        elif success_probability >= 60:
+            signal_color = "#ffc107"
+            signal_label = "AT RISK"
+        else:
+            signal_color = "#dc3545"
+            signal_label = "HIGH RISK"
+
+        st.markdown(f"""
+<div style="display:flex; align-items:center; gap:10px; margin: 8px 0 16px 0;">
+  <div style="width:18px; height:18px; border-radius:50%; background:{signal_color};
+              box-shadow: 0 0 8px {signal_color}; flex-shrink:0;"></div>
+  <span style="font-size:0.95rem; font-weight:600; color:#C9D1D9;">
+    Sprint Health: <strong style="color:{signal_color};">{signal_label}</strong>
+    &nbsp;·&nbsp; {round(success_probability)}% Confidence
+  </span>
+</div>
+""", unsafe_allow_html=True)
 
         # --- AI INSIGHTS ---
         st.subheader("🧠 AI Recommendations")
