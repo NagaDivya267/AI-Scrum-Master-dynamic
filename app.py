@@ -211,11 +211,16 @@ def read_from_csv():
 
 def get_sprint_summary(df):
     """Generate summary statistics from DataFrame"""
+    required_columns = {"Sprint", "Status", "StoryPoints"}
+    if not required_columns.issubset(df.columns):
+        return {}
+
     sprints = {}
     for _, row in df.iterrows():
-        sprint = row['Sprint']
-        status = row['Status']
-        story_points = int(row['StoryPoints']) if isinstance(row['StoryPoints'], (int, float)) else 0
+        sprint = str(row['Sprint'])
+        status = str(row['Status']).strip()
+        story_points = pd.to_numeric(row['StoryPoints'], errors='coerce')
+        story_points = int(story_points) if pd.notna(story_points) else 0
         
         if sprint not in sprints:
             sprints[sprint] = {"Done": 0, "In Progress": 0, "To Do": 0, "Total": 0}
@@ -227,15 +232,33 @@ def get_sprint_summary(df):
 
 def calculate_metrics(df):
     """Calculate key metrics for the sprint"""
+    required_columns = {"Sprint", "Status", "StoryPoints"}
+    if not required_columns.issubset(df.columns):
+        return {
+            "total_sp": 0,
+            "completed_sp": 0,
+            "remaining_sp": 0,
+            "in_progress_sp": 0,
+            "todo_sp": 0,
+            "blocked_count": 0,
+            "blocked_sp": 0,
+            "completion_rate": 0,
+            "risk_percentage": 0
+        }
+
     sprints_summary = get_sprint_summary(df)
     
     total_story_points = sum(s["Total"] for s in sprints_summary.values())
     total_completed = sum(s["Done"] for s in sprints_summary.values())
     total_in_progress = sum(s["In Progress"] for s in sprints_summary.values())
     total_todo = sum(s["To Do"] for s in sprints_summary.values())
-    blocked_mask = df['Blocked'].astype(str).str.strip().str.lower() == 'yes'
-    blocked_count = blocked_mask.sum()
-    blocked_sp = pd.to_numeric(df.loc[blocked_mask, 'StoryPoints'], errors='coerce').fillna(0).sum()
+    if 'Blocked' in df.columns:
+        blocked_mask = df['Blocked'].astype(str).str.strip().str.lower() == 'yes'
+        blocked_count = blocked_mask.sum()
+        blocked_sp = pd.to_numeric(df.loc[blocked_mask, 'StoryPoints'], errors='coerce').fillna(0).sum()
+    else:
+        blocked_count = 0
+        blocked_sp = 0
     
     completion_rate = (total_completed / total_story_points * 100) if total_story_points > 0 else 0
     # Risk% = Sum of blocked SP / Committed story points
