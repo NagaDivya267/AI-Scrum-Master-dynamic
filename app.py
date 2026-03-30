@@ -133,7 +133,7 @@ st.sidebar.markdown("### ⚙️ Configuration")
 
 # Sidebar - Data Source
 st.sidebar.markdown("### 📁 Sprint Data")
-uploaded_file = st.sidebar.file_uploader("Upload Sprint CSV", type=["csv"])
+uploaded_file = st.sidebar.file_uploader("Upload Sprint CSV/XLSX", type=["csv", "xlsx"])
 
 # Try to get API key from Streamlit secrets (for production), then from env vars
 api_key = None
@@ -698,7 +698,10 @@ Be concise, practical, and focused on what matters most for sprint success."""
 df = None
 if uploaded_file is not None:
     try:
-        df = pd.read_csv(uploaded_file)
+        if uploaded_file.name.lower().endswith(".csv"):
+            df = pd.read_csv(uploaded_file)
+        else:
+            df = pd.read_excel(uploaded_file)
         st.sidebar.success("✅ Using uploaded sprint data")
     except Exception as e:
         st.sidebar.error(f"❌ Upload error: {e}")
@@ -709,7 +712,7 @@ if df is None:
 
 if df is not None:
     # Create tabs with new AI Insights tab and Chat tab
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 All Data", "📈 Sprint Summary", "🎯 Metrics", "🧠 AI Insights", "💬 Chat"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📊 All Data", "📈 Sprint Summary", "🎯 Metrics", "🧠 AI Insights", "💬 Chat", "🅳 DPM"])
     # Tab 1: All Data
     with tab1:
         st.subheader("Sprint Data Table")
@@ -1191,6 +1194,105 @@ if df is not None:
                     
                     # Add assistant response to history
                     st.session_state.chat_history.append({"role": "assistant", "content": response})
+
+    # Tab 6: Delivery Performance Metrics
+    with tab6:
+        st.subheader("🅳 Delivery Performance Metrics")
+
+        dpm_uploaded_file = st.file_uploader(
+            "Upload Sprint Data",
+            type=["csv", "xlsx"],
+            key="dpm_uploaded_file",
+        )
+
+        dpm_data = None
+        if dpm_uploaded_file:
+            try:
+                if dpm_uploaded_file.name.lower().endswith(".csv"):
+                    dpm_data = pd.read_csv(dpm_uploaded_file)
+                else:
+                    dpm_data = pd.read_excel(dpm_uploaded_file)
+            except Exception as e:
+                st.error(f"Unable to read uploaded file: {e}")
+
+        if dpm_data is None and all(col in df.columns for col in ["Sprint", "Committed", "Completed"]):
+            dpm_data = df.copy()
+            st.info("Using current loaded data for DPM. Upload a file to override.")
+
+        if dpm_data is None:
+            st.warning("Upload a CSV/XLSX with Sprint, Committed, Completed columns to view DPM.")
+        else:
+            required_cols = ["Sprint", "Committed", "Completed"]
+
+            if not all(col in dpm_data.columns for col in required_cols):
+                st.error("Data must contain: Sprint, Committed, Completed")
+            else:
+                dpm_df = dpm_data.copy()
+                dpm_df["Committed"] = pd.to_numeric(dpm_df["Committed"], errors="coerce").fillna(0)
+                dpm_df["Completed"] = pd.to_numeric(dpm_df["Completed"], errors="coerce").fillna(0)
+
+                # Take last 6 sprints (dynamic)
+                dpm_df = dpm_df.tail(6)
+
+                # Calculate average velocity
+                avg_velocity = dpm_df["Completed"].mean()
+
+                # Assign colors
+                dpm_df["Color"] = dpm_df["Completed"].apply(
+                    lambda x: "green" if x >= avg_velocity else "red"
+                )
+
+                import numpy as np
+                import matplotlib.pyplot as plt
+
+                fig, ax = plt.subplots()
+
+                # Semi-circle positions
+                theta = np.linspace(-np.pi / 2, np.pi / 2, len(dpm_df))
+                x = np.cos(theta)
+                y = np.sin(theta)
+
+                for i in range(len(dpm_df)):
+                    sprint = dpm_df.iloc[i]
+
+                    ax.text(
+                        x[i],
+                        y[i],
+                        f"{sprint['Sprint']}\n{int(round(sprint['Completed']))}",
+                        ha="center",
+                        va="center",
+                        bbox=dict(
+                            boxstyle="round,pad=0.4",
+                            facecolor=sprint["Color"],
+                            edgecolor="black",
+                        ),
+                        color="white",
+                    )
+
+                # Draw D shape
+                ax.plot([-1, -1], [-1, 1], linewidth=3)
+                theta_curve = np.linspace(-np.pi / 2, np.pi / 2, 100)
+                ax.plot(np.cos(theta_curve), np.sin(theta_curve), linewidth=3)
+
+                ax.set_aspect("equal")
+                ax.axis("off")
+
+                st.pyplot(fig)
+
+                # Committed vs Completed chart
+                st.subheader("📊 Committed vs Completed")
+                chart_df = dpm_df.set_index("Sprint")[["Committed", "Completed"]]
+                st.bar_chart(chart_df)
+
+                # Legend
+                st.markdown(
+                    f"""
+                    **Average Velocity:** {round(avg_velocity, 2)}
+
+                    🟢 Above Avg Velocity  
+                    🔴 Below Avg Velocity
+                    """
+                )
     
     st.markdown("---")
     st.markdown("*Last updated: Real-time from sprint_data.csv*")
