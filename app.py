@@ -1190,10 +1190,10 @@ box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
             - Confidence Score = `0.5 × Predictability - 0.3 × Spillover`
             """)
     
-    # Tab 4: AI Coach (Insights + Chat)
+    # Tab 4: AI Team Coach (Insights + Chat)
     with tab4:
-        st.markdown("## 🧠 AI Delivery Coach & Copilot")
-        st.markdown("*Powered by Groq — Senior Scrum Master + SAFe RTE perspective*")
+        st.markdown("## 🧠 AI Team Coach")
+        st.markdown("*Powered by Groq — Scrum Master and Agile Team Coaching Copilot*")
 
         # Check if API key is configured
         if not os.getenv("GROQ_API_KEY"):
@@ -1224,25 +1224,6 @@ box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
             elif ai_risk > RISK_MODERATE_THRESHOLD:
                 st.warning(f"⚠️ AI Alert: Sprint is at risk — {round(ai_risk)}% risk index. Monitor closely.")
 
-            # Quick question suggestion buttons
-            st.markdown("### 💡 Quick Questions")
-            q_col1, q_col2, q_col3 = st.columns(3)
-            quick_question = None
-            with q_col1:
-                if st.button("Will we meet the sprint goal?", use_container_width=True):
-                    quick_question = "Will we meet the sprint goal?"
-            with q_col2:
-                if st.button("What should I do today?", use_container_width=True):
-                    quick_question = "What should I do today as Scrum Master?"
-            with q_col3:
-                if st.button("Biggest risk right now?", use_container_width=True):
-                    quick_question = "What is the biggest risk right now?"
-
-            if quick_question:
-                with st.spinner("🤔 Thinking..."):
-                    quick_response = chat_with_ai(df, quick_question)
-                st.info(f"**{quick_question}**\n\n{quick_response}")
-
             st.markdown("---")
 
             col1, col2, col3 = st.columns([3, 1, 1])
@@ -1271,10 +1252,10 @@ box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
                 st.info("💡 Click 'Generate AI Insights' to get a data-driven coaching verdict from your AI Delivery Coach.")
 
             st.markdown("---")
-            st.subheader("🤖 Ask Delivery Copilot")
-            st.caption("Generative AI coach for Scrum Masters and teams: anti-pattern detection, agile practices, and decision support.")
+            st.subheader("💬 Team Coach Chat")
+            st.caption("Generative Scrum coaching: anti-pattern detection, agile practice suggestions, and decision guidance.")
             st.markdown("""
-            **Ask me anything about your sprint!**
+            **Ask your AI Team Coach:**
             - "How can we improve our velocity?"
             - "What should we do about the blocked items?"
             - "Which sprint is at risk?"
