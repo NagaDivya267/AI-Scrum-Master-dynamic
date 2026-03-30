@@ -982,13 +982,6 @@ box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
             f"{max(0, remaining_days)} days remaining  ·  {round(remaining_sp_summary)} SP remaining"
         )
 
-        # ── Burn Rate Comparison Chart ────────────────────────────────────
-        burn_compare_df = pd.DataFrame({
-            "Type": ["🔥 Ideal Burn", "⚡ Required Burn"],
-            "SP / day": [round(ideal_burn_rate, 2), round(required_burn_rate, 2)],
-        })
-        st.bar_chart(burn_compare_df.set_index("Type"))
-
         # ── Executive Insight ─────────────────────────────────────────────
         if committed_sp == 0:
             st.info("ℹ️ No active sprint data available.")
