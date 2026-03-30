@@ -962,7 +962,7 @@ if df is not None:
 
         st.subheader("📊 Predictive KPI Dashboard")
 
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
 
         color1 = get_color(success_probability, 85, 60)
         col1.markdown(f"""
@@ -972,8 +972,16 @@ if df is not None:
 </div>
 """, unsafe_allow_html=True)
 
-        color2 = "red" if spillover_sp > 5 else "green"
+        color_pred = get_color((predicted_completion_sp / total_sp * 100) if total_sp > 0 else 0, 85, 60)
         col2.markdown(f"""
+<div class="card {color_pred}">
+    🎯 {round(predicted_completion_sp)} SP <br>
+    Predicted Completion
+</div>
+""", unsafe_allow_html=True)
+
+        color2 = "red" if spillover_sp > 5 else "green"
+        col3.markdown(f"""
 <div class="card {color2}">
     📉 {round(spillover_sp)} SP <br>
     Spillover
@@ -981,7 +989,7 @@ if df is not None:
 """, unsafe_allow_html=True)
 
         color3 = "green" if risk_index < 30 else "yellow" if risk_index < 60 else "red"
-        col3.markdown(f"""
+        col4.markdown(f"""
 <div class="card {color3}">
     ⚠️ {round(risk_index)} <br>
     Risk Index
@@ -989,9 +997,9 @@ if df is not None:
 """, unsafe_allow_html=True)
 
         color4 = get_color(confidence_score, 75, 50)
-        col4.markdown(f"""
+        col5.markdown(f"""
 <div class="card {color4}">
-    🎯 {round(confidence_score)}% <br>
+    🏅 {round(confidence_score)}% <br>
     Confidence Score
 </div>
 """, unsafe_allow_html=True)
