@@ -761,6 +761,19 @@ if df is None:
     pass
 
 if df is not None:
+    # Normalize uploaded data so tabs don't crash when optional sprint columns are missing.
+    if 'Sprint' not in df.columns:
+        df['Sprint'] = 'Sprint 1'
+    if 'Status' not in df.columns:
+        df['Status'] = 'To Do'
+    if 'StoryPoints' not in df.columns:
+        df['StoryPoints'] = 0
+    if 'Blocked' not in df.columns:
+        df['Blocked'] = 'No'
+    if 'Story' not in df.columns:
+        df['Story'] = ''
+
+if df is not None:
     # Create tabs with new AI Insights tab and Chat tab
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📊 All Data", "📈 Sprint Summary", "🎯 Metrics", "🧠 AI Insights", "💬 Chat", "🅳 DPM"])
     # Tab 1: All Data
