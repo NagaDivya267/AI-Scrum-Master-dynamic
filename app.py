@@ -1239,50 +1239,181 @@ if df is not None:
 
                 # Assign colors
                 dpm_df["Color"] = dpm_df["Completed"].apply(
-                    lambda x: "green" if x >= avg_velocity else "red"
+                    lambda x: "green" if x > avg_velocity else "red"
                 )
 
                 import numpy as np
                 import matplotlib.pyplot as plt
 
-                fig, ax = plt.subplots()
+                # Compact D map (dot-style) to reduce footprint.
+                fig, ax = plt.subplots(figsize=(3.2, 1.9))
 
-                # Semi-circle positions
-                theta = np.linspace(-np.pi / 2, np.pi / 2, len(dpm_df))
-                x = np.cos(theta)
-                y = np.sin(theta)
+                radius = 0.62
+                center_x = -0.58
+                center_y = 0.0
+                d_line_width = 1.6
+
+                # Draw subtle D guide.
+                ax.plot(
+                    [center_x, center_x],
+                    [center_y - radius, center_y + radius],
+                    linewidth=d_line_width,
+                    color="#334155",
+                    alpha=0.85,
+                    solid_capstyle="round",
+                )
+                theta_curve = np.linspace(-np.pi / 2, np.pi / 2, 120)
+                x_curve = center_x + radius * np.cos(theta_curve)
+                y_curve = center_y + radius * np.sin(theta_curve)
+                ax.plot(
+                    x_curve,
+                    y_curve,
+                    linewidth=d_line_width,
+                    color="#475569",
+                    alpha=0.7,
+                    solid_capstyle="round",
+                )
+
+                # Place sprint markers on the curve.
+                theta = np.linspace(np.pi / 2, -np.pi / 2, len(dpm_df))
+                x = center_x + radius * np.cos(theta)
+                y = center_y + radius * np.sin(theta)
+                marker_colors = ["#4ade80" if color == "green" else "#f43f5e" for color in dpm_df["Color"]]
+
+                ax.scatter(
+                    x,
+                    y,
+                    s=54,
+                    c=marker_colors,
+                    edgecolors="#e5e7eb",
+                    linewidths=0.6,
+                    zorder=4,
+                )
 
                 for i in range(len(dpm_df)):
                     sprint = dpm_df.iloc[i]
-
                     ax.text(
-                        x[i],
+                        x[i] + 0.06,
                         y[i],
-                        f"{sprint['Sprint']}\n{int(round(sprint['Completed']))}",
-                        ha="center",
+                        f"{sprint['Sprint']}",
+                        ha="left",
                         va="center",
-                        bbox=dict(
-                            boxstyle="round,pad=0.4",
-                            facecolor=sprint["Color"],
-                            edgecolor="black",
-                        ),
-                        color="white",
+                        fontsize=8,
+                        color="#f8fafc",
                     )
 
-                # Draw D shape
-                ax.plot([-1, -1], [-1, 1], linewidth=3)
-                theta_curve = np.linspace(-np.pi / 2, np.pi / 2, 100)
-                ax.plot(np.cos(theta_curve), np.sin(theta_curve), linewidth=3)
-
                 ax.set_aspect("equal")
+                ax.set_xlim(-1.06, 0.18)
+                ax.set_ylim(-0.72, 0.72)
                 ax.axis("off")
+                fig.tight_layout(pad=0.05)
 
-                st.pyplot(fig)
+                d_col1, d_col2, d_col3 = st.columns([1.2, 2.6, 1.2])
+                with d_col2:
+                    st.pyplot(fig, use_container_width=False)
 
                 # Committed vs Completed chart
                 st.subheader("📊 Committed vs Completed")
-                chart_df = dpm_df.set_index("Sprint")[["Committed", "Completed"]]
-                st.bar_chart(chart_df)
+                from matplotlib.lines import Line2D
+                from matplotlib.patches import Patch
+
+                fig2, ax2 = plt.subplots(figsize=(8.2, 3.6))
+                x_pos = np.arange(len(dpm_df))
+                bar_width = 0.28  # slimmer columns
+
+                committed_values = dpm_df["Committed"].to_numpy()
+                completed_values = dpm_df["Completed"].to_numpy()
+                completed_colors = [
+                    "#16a34a" if value > avg_velocity else "#dc2626"
+                    for value in completed_values
+                ]
+
+                committed_bars = ax2.bar(
+                    x_pos - bar_width / 2,
+                    committed_values,
+                    width=bar_width,
+                    color="#2563eb",
+                    edgecolor="#1e3a8a",
+                    linewidth=0.8,
+                    zorder=3,
+                    label="Committed",
+                )
+                completed_bars = ax2.bar(
+                    x_pos + bar_width / 2,
+                    completed_values,
+                    width=bar_width,
+                    color=completed_colors,
+                    edgecolor="#111827",
+                    linewidth=0.8,
+                    zorder=3,
+                    label="Completed",
+                )
+
+                # Draw a strong average-velocity line across the full chart width.
+                avg_x = np.array([-0.6, len(dpm_df) - 0.4])
+                avg_y = np.array([avg_velocity, avg_velocity])
+                ax2.plot(
+                    avg_x,
+                    avg_y,
+                    color="#f59e0b",
+                    linewidth=3.0,
+                    linestyle="--",
+                    marker="o",
+                    markersize=4,
+                    zorder=6,
+                    label="Average Velocity",
+                )
+
+                ax2.set_xticks(x_pos)
+                ax2.set_xticklabels(dpm_df["Sprint"].astype(str), fontsize=9)
+                ax2.set_ylabel("Story Points", fontsize=9)
+                ax2.set_title("Committed vs Completed with Average Velocity", fontsize=11, pad=10)
+                ax2.set_xlim(-0.6, len(dpm_df) - 0.4)
+
+                y_max = max(float(committed_values.max(initial=0)), float(completed_values.max(initial=0)), float(avg_velocity))
+                ax2.set_ylim(0, y_max * 1.22 if y_max > 0 else 1)
+
+                ax2.text(
+                    len(dpm_df) - 0.42,
+                    avg_velocity,
+                    f"Avg {avg_velocity:.1f}",
+                    color="#92400e",
+                    fontsize=8,
+                    va="bottom",
+                    ha="right",
+                    bbox=dict(boxstyle="round,pad=0.2", facecolor="#fef3c7", edgecolor="#f59e0b"),
+                    zorder=7,
+                )
+
+                # Keep chart clean: no grid lines.
+                ax2.grid(False)
+                ax2.yaxis.grid(False)
+                ax2.xaxis.grid(False)
+                ax2.spines["top"].set_visible(False)
+                ax2.spines["right"].set_visible(False)
+
+                for bar in list(committed_bars) + list(completed_bars):
+                    height = bar.get_height()
+                    ax2.text(
+                        bar.get_x() + bar.get_width() / 2,
+                        height + 0.6,
+                        f"{int(round(height))}",
+                        ha="center",
+                        va="bottom",
+                        fontsize=8,
+                        color="#111827",
+                    )
+
+                legend_handles = [
+                    Patch(facecolor="#2563eb", edgecolor="#1e3a8a", label="Committed"),
+                    Patch(facecolor="#16a34a", edgecolor="#111827", label="Completed >= Avg"),
+                    Patch(facecolor="#dc2626", edgecolor="#111827", label="Completed < Avg"),
+                    Line2D([0], [0], color="#f59e0b", linewidth=2.0, label="Average Velocity"),
+                ]
+                ax2.legend(handles=legend_handles, loc="upper left", frameon=False, fontsize=8)
+
+                fig2.tight_layout(pad=0.6)
+                st.pyplot(fig2, use_container_width=True)
 
                 # Legend
                 st.markdown(
