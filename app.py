@@ -1225,6 +1225,23 @@ if df is not None:
             dpm_data = df.copy()
             st.info("Using current loaded data for DPM. Upload a file to override.")
 
+        # Derive DPM data from story-level upload (StoryPoints + Status)
+        if dpm_data is None and all(col in df.columns for col in ["Sprint", "StoryPoints", "Status"]):
+            _sp = pd.to_numeric(df["StoryPoints"], errors="coerce").fillna(0)
+            _df_sp = df.copy()
+            _df_sp["StoryPoints"] = _sp
+            committed_agg = _df_sp.groupby("Sprint")["StoryPoints"].sum().reset_index().rename(columns={"StoryPoints": "Committed"})
+            _done = ["done", "completed", "complete", "closed", "resolved", "finished"]
+            completed_agg = (
+                _df_sp[_df_sp["Status"].str.strip().str.lower().isin(_done)]
+                .groupby("Sprint")["StoryPoints"]
+                .sum()
+                .reset_index()
+                .rename(columns={"StoryPoints": "Completed"})
+            )
+            dpm_data = committed_agg.merge(completed_agg, on="Sprint", how="left").fillna(0)
+            st.info("Showing DPM derived from story-level data (Committed = total SP per sprint, Completed = Done SP per sprint).")
+
         if dpm_data is None:
             st.warning("Upload a CSV/XLSX with Sprint, Committed, Completed columns to view DPM.")
         else:
