@@ -358,6 +358,10 @@ def get_completed_sprint_health(df):
     """Build sprint health metrics for completed sprints only."""
     health_rows = []
 
+    required_columns = {"Sprint", "StoryPoints", "Status"}
+    if not required_columns.issubset(df.columns):
+        return pd.DataFrame(health_rows)
+
     if 'SprintStatus' in df.columns:
         completed_sprint_names = sorted(
             df[df['SprintStatus'].astype(str).str.strip().str.lower() == 'closed']['Sprint'].dropna().astype(str).unique(),
@@ -405,6 +409,14 @@ def get_completed_sprint_health(df):
 
 def get_velocity_metrics(df):
     """Calculate velocity-based metrics using the last 3 completed sprints"""
+    required_columns = {"Sprint", "StoryPoints", "Status"}
+    if not required_columns.issubset(df.columns):
+        return {
+            "avg_velocity": 0,
+            "velocities": [],
+            "velocity_trend": "➡️ Stable"
+        }
+
     # Identify completed sprint names
     if 'SprintStatus' in df.columns:
         closed_df = df[df['SprintStatus'].astype(str).str.strip().str.lower() == 'closed']
