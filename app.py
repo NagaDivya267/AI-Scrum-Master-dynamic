@@ -12,13 +12,28 @@ st.set_page_config(page_title="AI Scrum Assistant", layout="wide", initial_sideb
 # Global custom CSS for modern dark UI
 st.markdown("""
 <style>
+/* ── Global font scale-down ── */
+html, body, [class*="css"] {
+    font-size: 13px !important;
+}
+div[data-testid="stMarkdownContainer"] p,
+div[data-testid="stMarkdownContainer"] li {
+    font-size: 0.82rem !important;
+}
+label[data-testid="stWidgetLabel"],
+div[data-testid="stSelectbox"] label,
+div[data-testid="stTextInput"] label,
+div[data-testid="stFileUploader"] label {
+    font-size: 0.78rem !important;
+}
+
 /* ── Header gradient banner ── */
 h1 {
     background: linear-gradient(90deg, #00D4AA 0%, #6C63FF 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
-    font-size: 2.4rem !important;
+    font-size: 1.9rem !important;
     font-weight: 800 !important;
     letter-spacing: 0.5px;
 }
@@ -39,7 +54,7 @@ section[data-testid="stSidebar"] h3 {
 /* ── Tabs ── */
 button[data-baseweb="tab"] {
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.78rem;
     color: #8B949E;
 }
 button[data-baseweb="tab"][aria-selected="true"] {
@@ -66,7 +81,7 @@ div[data-testid="stMetricLabel"] {
 }
 div[data-testid="stMetricValue"] {
     color: #C9D1D9 !important;
-    font-size: 1.8rem !important;
+    font-size: 1.3rem !important;
     font-weight: 700 !important;
 }
 
