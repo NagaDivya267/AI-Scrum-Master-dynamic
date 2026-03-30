@@ -592,16 +592,46 @@ def calculate_sprint_confidence(df, full_df=None):
         "confidence": predicted_completion
     }
 
-def prepare_llm_summary(df):
-    """Prepare sprint data summary for LLM analysis"""
-    metrics = calculate_metrics(df)
-    sprints_summary = get_sprint_summary(df)
-    blocked_items = df[df['Blocked'] == 'Yes']
-    
+def prepare_llm_summary(df, full_df=None):
+    """Prepare sprint data summary for LLM analysis — scoped to current sprint."""
+    full_df = full_df if full_df is not None else df
+
+    # Scope to current sprint (same as Metrics tab)
+    current_sprint_df, current_sprint_name = get_current_sprint_df(df)
+    if current_sprint_df.empty:
+        current_sprint_df = df
+
+    metrics = calculate_metrics(current_sprint_df)
+    velocity_metrics = get_velocity_metrics(full_df)
+
+    # DPM-mode: derive SP from Committed/Completed when StoryPoints all zero
+    dpm_mode = (
+        {"Committed", "Completed"}.issubset(current_sprint_df.columns)
+        and metrics["total_sp"] == 0
+    )
+    if dpm_mode:
+        committed = pd.to_numeric(current_sprint_df["Committed"], errors="coerce").fillna(0).sum()
+        completed = pd.to_numeric(current_sprint_df["Completed"], errors="coerce").fillna(0).sum()
+        remaining = max(0, committed - completed)
+        completion_rate = (completed / committed * 100) if committed > 0 else 0
+        risk_pct = (remaining / committed * 100) if committed > 0 else 0
+        metrics["total_sp"] = committed
+        metrics["completed_sp"] = completed
+        metrics["remaining_sp"] = remaining
+        metrics["completion_rate"] = completion_rate
+        metrics["risk_percentage"] = risk_pct
+        metrics["todo_sp"] = remaining
+        metrics["in_progress_sp"] = 0
+        metrics["blocked_count"] = 0
+
+    blocked_items = current_sprint_df[
+        current_sprint_df.get("Blocked", pd.Series(dtype=str)).astype(str).str.strip().str.lower() == "yes"
+    ] if "Blocked" in current_sprint_df.columns else pd.DataFrame()
+
     summary = f"""
-    SPRINT DATA ANALYSIS REQUEST
-    
-    OVERALL METRICS:
+    CURRENT SPRINT: {current_sprint_name or 'Unknown'}
+
+    CURRENT SPRINT METRICS:
     - Total Story Points: {metrics['total_sp']}
     - Completed Story Points: {metrics['completed_sp']}
     - In Progress Story Points: {metrics['in_progress_sp']}
@@ -609,20 +639,22 @@ def prepare_llm_summary(df):
     - Completion Rate: {metrics['completion_rate']:.0f}%
     - Risk Percentage: {metrics['risk_percentage']:.0f}%
     - Blocked Items: {metrics['blocked_count']}
-    
-    SPRINT-WISE DATA:
+    - Average Velocity (last 3 sprints): {velocity_metrics['avg_velocity']:.0f} SP
+    - Velocity Trend: {velocity_metrics['velocity_trend']}
     """
-    
-    for sprint_name, stats in sorted(sprints_summary.items()):
-        sprint_completion = (stats['Done'] / stats['Total'] * 100) if stats['Total'] > 0 else 0
-        summary += f"\n    {sprint_name}: {stats['Done']}/{stats['Total']} points completed ({sprint_completion:.0f}%)"
-        summary += f"\n      - Done: {stats['Done']}, In Progress: {stats['In Progress']}, To Do: {stats['To Do']}"
-    
-    if len(blocked_items) > 0:
+
+    sprints_summary = get_sprint_summary(full_df)
+    if sprints_summary:
+        summary += "\n    HISTORICAL SPRINT DATA:\n"
+        for sprint_name, stats in sorted(sprints_summary.items()):
+            sprint_completion = (stats['Done'] / stats['Total'] * 100) if stats['Total'] > 0 else 0
+            summary += f"\n    {sprint_name}: {stats['Done']}/{stats['Total']} points completed ({sprint_completion:.0f}%)"
+
+    if not blocked_items.empty and "Story" in blocked_items.columns:
         summary += "\n\n    BLOCKED ITEMS:\n"
         for _, item in blocked_items.iterrows():
-            summary += f"    - {item['Story']} ({item['Sprint']}): {item['Status']}\n"
-    
+            summary += f"    - {item['Story']} ({item.get('Sprint','?')}): {item.get('Status','?')}\n"
+
     return summary
 
 def get_api_key():
@@ -764,17 +796,17 @@ Rules:
         st.error(f"❌ Error calling Groq API: {str(e)}")
         return None
 
-def chat_with_ai(df, user_question, chat_history=None):
-    """Generative coaching chat grounded in sprint data."""
+def chat_with_ai(df, user_question, chat_history=None, full_df=None):
+    """Generative coaching chat grounded in current sprint data."""
     api_key = get_api_key()
-    
+
     if not api_key:
         return "❌ Error: Groq API Key not configured. Please contact admin to add it to Streamlit Cloud Secrets."
-    
+
     try:
         client = Groq(api_key=api_key)
-        
-        summary = prepare_llm_summary(df)
+
+        summary = prepare_llm_summary(df, full_df=full_df if full_df is not None else df)
 
         history_block = ""
         if chat_history:
@@ -1298,7 +1330,7 @@ box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
                     st.markdown(preset_question)
                 with st.chat_message("assistant"):
                     with st.spinner("🤔 Thinking..."):
-                        response = chat_with_ai(df, preset_question, st.session_state.chat_history)
+                        response = chat_with_ai(current_sprint_df_ai, preset_question, st.session_state.chat_history, full_df=df)
                         st.markdown(response)
                 st.session_state.chat_history.append({"role": "assistant", "content": response})
 
@@ -1316,7 +1348,7 @@ box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
                 # Get AI response
                 with st.chat_message("assistant"):
                     with st.spinner("🤔 Thinking..."):
-                        response = chat_with_ai(df, user_input, st.session_state.chat_history)
+                        response = chat_with_ai(current_sprint_df_ai, user_input, st.session_state.chat_history, full_df=df)
                         st.markdown(response)
                     
                     # Add assistant response to history
