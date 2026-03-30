@@ -761,18 +761,78 @@ if df is not None:
         completed_health_df = get_completed_sprint_health(df)
 
         if not completed_health_df.empty:
-            for i in range(0, len(completed_health_df), 3):
-                card_cols = st.columns(3)
-                for j in range(3):
-                    row_idx = i + j
-                    if row_idx < len(completed_health_df):
-                        row = completed_health_df.iloc[row_idx]
-                        with card_cols[j]:
-                            st.metric(
-                                label=row["Sprint"],
-                                value=f"{row['Sprint Health %']}%",
-                                delta=row["Status"]
-                            )
+            import numpy as np
+            import matplotlib.pyplot as plt
+            from matplotlib.lines import Line2D
+
+            health_df = completed_health_df.reset_index(drop=True)
+
+            # Map status to dot colour
+            def _health_color(status):
+                if "Healthy" in status:
+                    return "#4ade80"
+                if "Moderate" in status:
+                    return "#facc15"
+                return "#f43f5e"
+
+            dot_colors = [_health_color(s) for s in health_df["Status"]]
+
+            fig_h, ax_h = plt.subplots(figsize=(3.6, 2.2))
+            fig_h.patch.set_facecolor("#0f172a")
+            ax_h.set_facecolor("#0f172a")
+
+            radius = 0.62
+            center_x = -0.58
+            center_y = 0.0
+            d_line_width = 1.6
+
+            # D vertical line
+            ax_h.plot(
+                [center_x, center_x],
+                [center_y - radius, center_y + radius],
+                linewidth=d_line_width, color="#334155", alpha=0.85, solid_capstyle="round",
+            )
+            # D curve
+            theta_curve = np.linspace(-np.pi / 2, np.pi / 2, 120)
+            ax_h.plot(
+                center_x + radius * np.cos(theta_curve),
+                center_y + radius * np.sin(theta_curve),
+                linewidth=d_line_width, color="#475569", alpha=0.7, solid_capstyle="round",
+            )
+
+            # Sprint dots on arc
+            theta = np.linspace(np.pi / 2, -np.pi / 2, len(health_df))
+            x = center_x + radius * np.cos(theta)
+            y = center_y + radius * np.sin(theta)
+
+            ax_h.scatter(x, y, s=60, c=dot_colors, edgecolors="#e5e7eb", linewidths=0.6, zorder=4)
+
+            for i, row in health_df.iterrows():
+                ax_h.text(
+                    x[i] + 0.07, y[i],
+                    f"{row['Sprint']}  {row['Sprint Health %']}%",
+                    ha="left", va="center", fontsize=5.5, color="#f1f5f9",
+                    bbox=dict(boxstyle="round,pad=0.08", facecolor="#1e293b", edgecolor="none", alpha=0.85),
+                )
+
+            # Legend
+            legend_handles = [
+                Line2D([0], [0], marker="o", color="none", markerfacecolor="#4ade80", markersize=6, label="Healthy"),
+                Line2D([0], [0], marker="o", color="none", markerfacecolor="#facc15", markersize=6, label="Moderate"),
+                Line2D([0], [0], marker="o", color="none", markerfacecolor="#f43f5e", markersize=6, label="Poor"),
+            ]
+            ax_h.legend(handles=legend_handles, loc="lower right", fontsize=5,
+                        framealpha=0.3, labelcolor="#f1f5f9", facecolor="#1e293b", edgecolor="none")
+
+            ax_h.set_aspect("equal")
+            ax_h.set_xlim(-1.1, 0.5)
+            ax_h.set_ylim(-0.78, 0.78)
+            ax_h.axis("off")
+            fig_h.tight_layout(pad=0.1)
+
+            d_h_col1, d_h_col2, d_h_col3 = st.columns([1.5, 2.4, 1.5])
+            with d_h_col2:
+                st.pyplot(fig_h, use_container_width=False)
         else:
             st.info("No completed sprints found yet. Sprint health status will appear once a sprint reaches 100% completion.")
 
