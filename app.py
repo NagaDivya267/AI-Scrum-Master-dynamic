@@ -901,14 +901,6 @@ if df is not None:
             - 🔴 **<60%** — High risk, immediate action required
             """)
 
-        # Key forecast metrics
-        st.subheader("📊 Key Forecast Metrics")
-        kf1, kf2, kf3 = st.columns(3)
-        kf1.metric("🚀 Forecasted Completion", f"{round(predicted_completion_sp, 1)} SP",
-                   delta=f"{round(predicted_completion_sp - total_sp, 1)} vs committed")
-        kf2.metric("⚠️ Risk Index", round(risk_index, 1))
-        kf3.metric("🎯 Confidence Score", f"{round(confidence_score, 1)}%")
-
         # Key insight
         st.subheader("🧠 Key Insight")
         if success_probability > 85:
